@@ -1,0 +1,174 @@
+model Group {
+    groupId              String   @id @default(uuid()) @map("GroupId")
+    brandId              String   @map("BrandId")
+    categoryId           String   @map("CategoryId")
+    subCategoryId        String   @map("SubCategoryId")
+    description          String?  @map("Description")
+    warrantyId           String?  @map("WarrantyId")
+    insideDhakaCharge    Decimal  @map("InsideDhakaCharge") @db.Decimal
+    outsideDhakaCharge   Decimal  @map("OutsideDhakaCharge") @db.Decimal
+    createdAt            DateTime @default(now()) @map("CreatedAt")
+    updatedAt            DateTime @updatedAt @map("UpdatedAt")
+
+    brand       Brand       @relation(fields: [brandId], references: [brandId])
+    category    Category    @relation(fields: [categoryId], references: [categoryId])
+    subCategory SubCategory @relation(fields: [subCategoryId], references: [subCategoryId])
+    warranty    Warranty?   @relation(fields: [warrantyId], references: [warrantyId])
+    products    Product[]
+
+    descriptionImages DescriptionImage[]
+    keyFeatures           KeyFeature[]
+    tags                  Tag[]
+    productSpecifications ProductSpecification[]
+
+    @@map("Group")
+}
+
+model Product {
+    productId       String   @id @default(uuid()) @map("ProductId")
+    groupId         String   @map("GroupId")
+    title           String   @map("Title")
+    subTitle        String?  @map("SubTitle")
+    bannerImageURL  String?  @map("BannerImageURL")
+    mainPrice       Decimal  @map("MainPrice") @db.Decimal
+    discount        Decimal? @map("Discount") @db.Decimal
+    price           Decimal  @map("Price") @db.Decimal
+    isNewArrival    Boolean  @default(false) @map("IsNewArrival")
+    isHotDeal       Boolean  @default(false) @map("IsHotDeal")
+    isDiscounted    Boolean  @default(false) @map("IsDiscounted")
+    status          String   @map("Status") // {"available", "preOrder"}
+    slug            String   @unique @map("Slug")
+    metaTitle       String?  @map("MetaTitle")
+    metaDescription String?  @map("MetaDescription")
+    couponId        String?  @map("CouponId")
+    createdAt       DateTime @default(now()) @map("CreatedAt")
+    updatedAt       DateTime @updatedAt @map("UpdatedAt")
+
+    group                 Group                  @relation(fields: [groupId], references: [groupId])
+    coupon                 Coupon?                @relation(fields: [couponId], references: [couponId])
+    images                ProductImage[]
+    
+    productFilters        ProductFilter[]
+    
+    reviews               Review[]
+    stocks                Stock[]
+    affiliateProduct      AffiliateProduct?
+    campaignProducts      CampaignProduct[]
+    cartItems             CartItem[]
+    wishlistItems         WishlistItem[]
+    orderProducts         OrderProduct[]
+    returnRequests        ReturnRequest[]
+    
+
+    @@map("Product")
+}
+
+model ProductImage {
+    productImageId String   @id @default(uuid()) @map("ProductImageId")
+    productId      String   @map("ProductId")
+    title          String?  @map("Title")
+    imageURL       String   @map("ImageURL")
+    orderIndex     Int      @map("OrderIndex")
+    createdAt      DateTime @default(now()) @map("CreatedAt")
+    updatedAt      DateTime @updatedAt @map("UpdatedAt")
+
+    product Product @relation(fields: [productId], references: [productId])
+
+    @@map("ProductImage")
+}
+
+model DescriptionImage {
+    descriptionImageId String   @id @default(uuid()) @map("DescriptionImageId")
+    groupId            String   @map("GroupId")
+    imageURL           String   @map("ImageURL")
+    orderIndex         Int      @map("OrderIndex")
+    createdAt          DateTime @default(now()) @map("CreatedAt")
+    updatedAt          DateTime @updatedAt @map("UpdatedAt")
+
+    group Group @relation(fields: [groupId], references: [groupId])
+
+    @@map("DescriptionImage")
+}
+
+model KeyFeature {
+    keyFeatureId String   @id @default(uuid()) @map("KeyFeatureId")
+    groupId      String   @map("GroupId")
+    feature      String   @map("Feature")
+    createdAt    DateTime @default(now()) @map("CreatedAt")
+    updatedAt    DateTime @updatedAt @map("UpdatedAt")
+
+    group Group @relation(fields: [groupId], references: [groupId])
+
+    @@map("KeyFeature")
+}
+
+model Tag {
+    tagId      String   @id @default(uuid()) @map("TagId")
+    groupId    String   @map("GroupId")
+    tag        String   @map("Tag")
+    createdAt  DateTime @default(now()) @map("CreatedAt")
+    updatedAt  DateTime @updatedAt @map("UpdatedAt")
+
+    group Group @relation(fields: [groupId], references: [groupId])
+
+    @@map("Tag")
+}
+
+model ProductFilter {
+    productFilterId String   @id @default(uuid()) @map("ProductFilterId")
+    productId       String   @map("ProductId")
+    filterId        String   @map("FilterId")
+    filterItemId    String   @map("FilterItemId")
+    createdAt       DateTime @default(now()) @map("CreatedAt")
+    updatedAt       DateTime @updatedAt @map("UpdatedAt")
+
+    product    Product    @relation(fields: [productId], references: [productId])
+    filter     Filter     @relation(fields: [filterId], references: [filterId])
+    filterItem FilterItem @relation(fields: [filterItemId], references: [filterItemId])
+
+    @@map("ProductFilter")
+}
+
+model ProductSpecification {
+    productSpecificationId String   @id @default(uuid()) @map("ProductSpecificationId")
+    specificationId        String   @map("SpecificationId")
+    groupId                String   @map("GroupId")
+    value                  String   @map("Value")
+    createdAt              DateTime @default(now()) @map("CreatedAt")
+    updatedAt              DateTime @updatedAt @map("UpdatedAt")
+
+    specification Specification @relation(fields: [specificationId], references: [specificationId])
+    group         Group         @relation(fields: [groupId], references: [groupId])
+
+    @@map("ProductSpecification")
+}
+
+model Review {
+    reviewId   String   @id @default(uuid()) @map("ReviewId")
+    productId  String   @map("ProductId")
+    name       String   @map("Name")
+    comment    String?  @map("Comment")
+    rating     Int      @map("Rating")
+    createdAt  DateTime @default(now()) @map("CreatedAt")
+    updatedAt  DateTime @updatedAt @map("UpdatedAt")
+
+    product Product @relation(fields: [productId], references: [productId])
+
+    @@map("Review")
+}
+
+model AffiliateProduct {
+    affiliateProductId String   @id @default(uuid()) @map("AffiliateProductId")
+    productId          String   @unique @map("ProductId")
+    affiliateSource    String   @map("AffiliateSource")
+    affiliateURL       String   @map("AffiliateURL")
+    affiliatePrice     Decimal  @map("AffiliatePrice") 
+    commissionPCT      Decimal? @map("CommissionPCT") 
+    isActive           Boolean  @default(true) @map("IsActive")
+    createdAt          DateTime @default(now()) @map("CreatedAt")
+    updatedAt          DateTime @updatedAt @map("UpdatedAt")
+
+    product Product @relation(fields: [productId], references: [productId])
+
+    @@map("AffiliateProduct")
+}

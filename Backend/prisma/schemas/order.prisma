@@ -1,0 +1,53 @@
+model Order {
+  orderId         String   @id @default(uuid()) @map("OrderId")
+  customerId      String   @map("CustomerId")
+  insideDhaka     Boolean  @map("InsideDhaka")
+  deliveryAddress String   @map("DeliveryAddress")
+  paymentMethod   String   @map("PaymentMethod")
+  subTotal        Decimal  @map("SubTotal") @db.Decimal
+  deliveryCharge  Decimal  @map("DeliveryCharge") @db.Decimal
+  discount        Decimal? @map("Discount") @db.Decimal
+  totalBill       Decimal  @map("TotalBill") @db.Decimal
+  orderStatus     String   @map("OrderStatus")
+  couponId        String?  @map("CouponId")
+  storeId         String?  @map("StoreId")
+  employeeId      String?  @map("EmployeeId")
+  paymentStatus   String   @map("PaymentStatus")
+  paidAmount      Decimal? @map("PaidAmount") @db.Decimal
+  dueAmount       Decimal? @map("DueAmount") @db.Decimal
+  transactionId   String?  @map("TransactionId")
+  invoiceURL      String?  @map("InvoiceURL")
+  orderType       String   @map("OrderType")
+  deliveryNote    String?  @map("DeliveryNote")
+  sellerNote      String?  @map("SellerNote")
+  createdAt       DateTime @default(now()) @map("CreatedAt")
+  updatedAt       DateTime @updatedAt @map("UpdatedAt")
+
+  customer       Customer       @relation(fields: [customerId], references: [customerId])
+  coupon         Coupon?        @relation(fields: [couponId], references: [couponId])
+  store          Store?         @relation(fields: [storeId], references: [storeId])
+  employee       Employee?      @relation(fields: [employeeId], references: [employeeId])
+  orderProducts  OrderProduct[]
+  couponUsage    CouponUsage?
+  returnRequests ReturnRequest[]
+
+  @@map("Order")
+}
+
+model OrderProduct {
+  orderProductId   String   @id @default(uuid()) @map("OrderProductId")
+  orderId          String   @map("OrderId")
+  productId        String   @map("ProductId")
+  serialNumber     String?  @map("SerialNumber")
+  originalPrice    Decimal  @map("OriginalPrice") @db.Decimal
+  discountAmount   Decimal? @map("DiscountAmount") @db.Decimal
+  purchasePrice    Decimal  @map("PurchasePrice") @db.Decimal
+  createdAt        DateTime @default(now()) @map("CreatedAt")
+  updatedAt        DateTime @updatedAt @map("UpdatedAt")
+
+  order        Order         @relation(fields: [orderId], references: [orderId])
+  product      Product       @relation(fields: [productId], references: [productId])
+  serial       SerialNumber? @relation(fields: [serialNumber], references: [serialNumber])
+  
+  @@map("OrderProduct")
+}

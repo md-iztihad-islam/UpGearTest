@@ -1,0 +1,13 @@
+model Expense {
+  expenseId   String   @id @default(uuid()) @map("ExpenseId")
+  date        DateTime @map("Date")
+  description String   @map("Description")
+  amount      Decimal  @map("Amount") @db.Decimal
+  employeeId  String   @map("EmployeeId")
+  createdAt   DateTime @default(now()) @map("CreatedAt")
+  updatedAt   DateTime @updatedAt @map("UpdatedAt")
+
+  employee    Employee @relation(fields: [employeeId], references: [employeeId])
+
+  @@map("Expense")
+}

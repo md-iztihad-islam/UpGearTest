@@ -1,0 +1,18 @@
+model Notification {
+  notificationId String   @id @default(uuid()) @map("NotificationId")
+  recipientId    String   @map("RecipientId")
+  recipientType  String   @map("RecipientType") // Customer, Employee, Store
+  title          String   @map("Title")
+  message        String   @map("Message")
+  type           String   @map("Type")
+  isRead         Boolean  @default(false) @map("IsRead")
+  referenceId    String?  @map("ReferenceId")
+  referenceType  String?  @map("ReferenceType")
+  createdAt      DateTime @default(now()) @map("CreatedAt")
+  updatedAt      DateTime @updatedAt @map("UpdatedAt")
+
+  // Polymorphic: recipientType = "Customer" links to Customer
+  customer Customer? @relation(fields: [recipientId], references: [customerId])
+
+  @@map("Notification")
+}

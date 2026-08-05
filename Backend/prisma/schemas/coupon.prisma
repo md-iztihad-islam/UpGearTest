@@ -1,0 +1,35 @@
+model Coupon {
+  couponId       String    @id @default(uuid()) @map("CouponId")
+  title          String    @map("Title")
+  code           String    @unique @map("Code")
+  discountPCT    Decimal?  @map("DiscountPCT") @db.Decimal
+  discountAMT    Decimal?  @map("DiscountAMT") @db.Decimal
+  maxUsageLimit  Int?      @default(1000000000) @map("MaxUsageLimit")
+  expiryDate     DateTime? @map("ExpiryDate")
+  minOrderAmount Decimal?  @map("MinOrderAmount")
+  maxDiscountAmt  Decimal?  @map("MaxDiscountAmt") @db.Decimal
+  isActive       Boolean   @default(true) @map("IsActive")
+  usedCount      Int       @default(0) @map("UsedCount")
+  createdAt      DateTime  @default(now()) @map("CreatedAt")
+  updatedAt      DateTime  @updatedAt @map("UpdatedAt")
+
+  couponUsages CouponUsage[]
+  orders       Order[]
+  products     Product[]
+
+  @@map("Coupon")
+}
+
+model CouponUsage {
+  couponUsageId String   @id @default(uuid()) @map("CouponUsageId")
+  couponId      String   @map("CouponId")
+  customerId    String   @map("CustomerId")
+  orderId       String   @unique @map("OrderId")
+  usedAt        DateTime @default(now()) @map("UsedAt")
+
+  coupon   Coupon   @relation(fields: [couponId], references: [couponId])
+  customer Customer @relation(fields: [customerId], references: [customerId])
+  order    Order    @relation(fields: [orderId], references: [orderId])
+
+  @@map("CouponUsage")
+}

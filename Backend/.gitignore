@@ -1,0 +1,56 @@
+ # Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.project
+.settings/
+*.iml
+
+# Temporary and build files
+temp/
+temp_invoices/
+dist/
+build/
+*.log
+
+# Package manager lock files (optional - uncomment if you want to share them)
+# package-lock.json
+# yarn.lock
+
+# Uploads and file storage
+uploads/
+public/uploads/
+
+# MacOS
+.AppleDouble
+.LSOverride
+
+# Windows
+.lnk
+
+# Misc
+.cache/
+.parcel-cache/
+.next/
+out/
+
+/src/generated/prisma

@@ -1,0 +1,26 @@
+model Campaign {
+  campaignId  String    @id @default(uuid()) @map("CampaignId")
+  title       String    @map("Title")
+  subTitle    String?   @map("SubTitle")
+  orderIndex  Int       @map("OrderIndex")
+  status      String    @map("Status")
+  startAt     DateTime? @map("StartAt")
+  endAt       DateTime? @map("EndAt")
+  createdAt   DateTime  @default(now()) @map("CreatedAt")
+  updatedAt   DateTime  @updatedAt @map("UpdatedAt")
+
+  campaignProducts CampaignProduct[]
+
+  @@map("Campaign")
+}
+
+model CampaignProduct {
+  campaignId String @map("CampaignId")
+  productId  String @map("ProductId")
+
+  campaign Campaign @relation(fields: [campaignId], references: [campaignId])
+  product  Product  @relation(fields: [productId], references: [productId])
+
+  @@id([campaignId, productId])
+  @@map("CampaignProduct")
+}

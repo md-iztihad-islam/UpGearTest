@@ -1,0 +1,29 @@
+model Brand {
+    brandId         String   @id @default(uuid()) @map("BrandId")
+    title           String   @map("Title")
+    productType     String   @map("ProductType")
+    slug            String   @unique @map("Slug")
+    metaTitle       String?  @map("MetaTitle")
+    metaDescription String?  @map("MetaDescription")
+    createdAt       DateTime @default(now()) @map("CreatedAt")
+    updatedAt       DateTime @updatedAt @map("UpdatedAt")
+
+    groups Group[]
+
+    @@map("Brand")
+}
+
+model Warranty {
+    warrantyId  String   @id @default(uuid()) @map("WarrantyId")
+    title       String   @map("Title")
+    subTitle    String?  @map("SubTitle")
+    description String?  @map("Description")
+    status      String   @map("Status")
+    orderIndex  Int      @map("OrderIndex")
+    createdAt   DateTime @default(now()) @map("CreatedAt")
+    updatedAt   DateTime @updatedAt @map("UpdatedAt")
+
+    groups Group[]
+
+    @@map("Warranty")
+}

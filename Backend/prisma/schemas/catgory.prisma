@@ -1,0 +1,75 @@
+model Category {
+  categoryId      String        @id @default(uuid()) @map("CategoryId")
+  title           String        @map("Title") 
+  slug            String        @unique @map("Slug")
+  metaTitle       String?       @map("MetaTitle")
+  metaDescription String?       @map("MetaDescription")
+  createdAt       DateTime      @default(now()) @map("CreatedAt")
+  updatedAt       DateTime      @updatedAt @map("UpdatedAt")
+
+  subCategories SubCategory[]
+  groups        Group[]
+
+  @@map("Category")
+}
+
+model SubCategory {
+  subCategoryId   String          @id @default(uuid()) @map("SubCategoryId")
+  categoryId      String          @map("CategoryId")
+  title           String          @map("Title")
+  slug            String          @unique @map("Slug")
+  metaTitle       String?         @map("MetaTitle")
+  metaDescription String?         @map("MetaDescription")
+  createdAt       DateTime        @default(now()) @map("CreatedAt")
+  updatedAt       DateTime        @updatedAt @map("UpdatedAt")
+
+  category       Category        @relation(fields: [categoryId], references: [categoryId])
+  filters        Filter[]
+  filterItems    FilterItem[]
+  specifications Specification[]
+  groups         Group[]
+
+  @@map("SubCategory")
+}
+
+model Filter {
+  filterId      String       @id @default(uuid()) @map("FilterId")
+  subCategoryId String       @map("SubCategoryId")
+  title         String       @map("Title")
+  createdAt     DateTime     @default(now()) @map("CreatedAt")
+  updatedAt     DateTime     @updatedAt @map("UpdatedAt")
+
+  subCategory  SubCategory   @relation(fields: [subCategoryId], references: [subCategoryId])
+  filterItems  FilterItem[]
+  productFilters ProductFilter[]
+
+  @@map("Filter")
+}
+
+model FilterItem {
+  filterItemId  String   @id @default(uuid()) @map("FilterItemId")
+  subCategoryId String   @map("SubCategoryId")
+  filterId      String   @map("FilterId")
+  title         String   @map("Title")
+  createdAt     DateTime @default(now()) @map("CreatedAt")
+  updatedAt     DateTime @updatedAt @map("UpdatedAt")
+
+  filter         Filter          @relation(fields: [filterId], references: [filterId])
+  subCategory    SubCategory     @relation(fields: [subCategoryId], references: [subCategoryId])
+  productFilters ProductFilter[]
+
+  @@map("FilterItem")
+}
+
+model Specification {
+  specificationId String   @id @default(uuid()) @map("SpecificationId")
+  subCategoryId   String   @map("SubCategoryId")
+  title           String   @map("Title") 
+  createdAt       DateTime @default(now()) @map("CreatedAt")
+  updatedAt       DateTime @updatedAt @map("UpdatedAt")
+
+  subCategory            SubCategory              @relation(fields: [subCategoryId], references: [subCategoryId])
+  productSpecifications  ProductSpecification[]
+
+  @@map("Specification")
+}

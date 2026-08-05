@@ -1,0 +1,25 @@
+model ReturnRequest {
+  returnRequestId      String    @id @default(uuid()) @map("ReturnRequestId")
+  orderId              String    @map("OrderId")
+  customerId           String    @map("CustomerId")
+  productId            String    @map("ProductId")
+  serialNumber         String?   @map("SerialNumber")
+  reason               String    @map("Reason")
+  status               String    @map("Status")
+  refundAmount         Decimal?  @map("RefundAmount") @db.Decimal
+  refundMethod         String?   @map("RefundMethod")
+  refundStatus         String?   @map("RefundStatus")
+  handledByEmployeeId  String?   @map("HandledByEmployeeId")
+  storeId              String?   @map("StoreId")
+  createdAt            DateTime  @default(now()) @map("CreatedAt")
+  updatedAt            DateTime  @updatedAt @map("UpdatedAt")
+
+  order    Order         @relation(fields: [orderId], references: [orderId])
+  customer Customer      @relation(fields: [customerId], references: [customerId])
+  product  Product       @relation(fields: [productId], references: [productId])
+  serial   SerialNumber? @relation(fields: [serialNumber], references: [serialNumber])
+  employee Employee?     @relation(fields: [handledByEmployeeId], references: [employeeId])
+  store    Store?        @relation(fields: [storeId], references: [storeId])
+
+  @@map("ReturnRequest")
+}

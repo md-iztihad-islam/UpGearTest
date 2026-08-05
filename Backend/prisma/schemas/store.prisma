@@ -1,0 +1,43 @@
+model Store {
+  storeId     String   @id @default(uuid()) @map("StoreId")
+  title       String   @map("Title")
+  subTitle    String?  @map("SubTitle")
+  address     String   @map("Address")
+  phone       String   @map("Phone")
+  email       String   @unique @map("Email")
+  password    String   @map("Password")
+  status      String   @map("Status")
+  createdAt   DateTime @default(now()) @map("CreatedAt")
+  updatedAt   DateTime @updatedAt @map("UpdatedAt")
+
+  employees     Employee[]
+  serialNumbers SerialNumber[]
+  orders        Order[]
+  returnRequests ReturnRequest[]
+
+  @@map("Store")
+}
+
+model Employee {
+  employeeId     String    @id @default(uuid()) @map("EmployeeId")
+  name           String    @map("Name")
+  phone          String    @map("Phone")
+  email          String    @unique @map("Email")
+  address        String?   @map("Address")
+  password       String    @map("Password")
+  hireDate       DateTime  @map("HireDate")
+  endDate        DateTime? @map("EndDate")
+  imageURL       String?   @map("ImageURL")
+  storeId        String    @map("StoreId")
+  status         String    @map("Status")
+  role           String    @map("Role") // { "Admin", "Accountant", "SalesAssociate" }
+  createdAt      DateTime  @default(now()) @map("CreatedAt")
+  updatedAt      DateTime  @updatedAt @map("UpdatedAt")
+
+  store          Store     @relation(fields: [storeId], references: [storeId])
+  orders         Order[]
+  returnRequests ReturnRequest[]
+  expenses       Expense[]
+
+  @@map("Employee")
+}

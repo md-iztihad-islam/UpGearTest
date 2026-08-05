@@ -1,0 +1,34 @@
+model Stock {
+  stockId          String   @id @default(uuid()) @map("StockId")
+  productId        String   @map("ProductId")
+  quantity         Int      @map("Quantity")
+  reserved         Int      @default(0) @map("Reserved")
+  remaining        Int      @map("Remaining")
+  purchasingPrice  Decimal  @map("PurchasingPrice") @db.Decimal
+  status           String   @map("Status") // {"available", "outOfStock"}
+  barcodePDF       String?  @map("BarcodePDF")
+  createdAt        DateTime @default(now()) @map("CreatedAt")
+  updatedAt        DateTime @updatedAt @map("UpdatedAt")
+
+  product       Product       @relation(fields: [productId], references: [productId])
+  serialNumbers SerialNumber[]
+
+  @@map("Stock")
+}
+
+model SerialNumber {
+  serialNumber  String    @id @map("SerialNumber")
+  stockId       String    @map("StockId")
+  storeId       String?   @map("StoreId")
+  isInWarehouse Boolean   @default(true) @map("IsInWarehouse")
+  soldAt        DateTime? @map("SoldAt")
+  createdAt     DateTime  @default(now()) @map("CreatedAt")
+  updatedAt     DateTime  @updatedAt @map("UpdatedAt")
+
+  stock         Stock         @relation(fields: [stockId], references: [stockId])
+  store         Store?        @relation(fields: [storeId], references: [storeId])
+  orderProducts OrderProduct[]
+  returnRequests ReturnRequest[]
+
+  @@map("SerialNumber")
+}

@@ -1,0 +1,50 @@
+model Wishlist {
+  wishlistId String   @id @default(uuid()) @map("WishlistId")
+  customerId String   @unique @map("CustomerId")
+  createdAt  DateTime @default(now()) @map("CreatedAt")
+
+  customer      Customer       @relation(fields: [customerId], references: [customerId])
+  wishlistItems WishlistItem[]
+
+  @@map("Wishlist")
+}
+
+model WishlistItem {
+  wishlistItemId String   @id @default(uuid()) @map("WishlistItemId")
+  wishlistId     String   @map("WishlistId")
+  productId      String   @map("ProductId")
+  createdAt      DateTime @default(now()) @map("CreatedAt")
+
+  wishlist Wishlist @relation(fields: [wishlistId], references: [wishlistId])
+  product  Product  @relation(fields: [productId], references: [productId])
+
+  @@unique([wishlistId, productId])
+  @@map("WishlistItem")
+}
+
+model Cart {
+  cartId     String   @id @default(uuid()) @map("CartId")
+  customerId String   @unique @map("CustomerId")
+  createdAt  DateTime @default(now()) @map("CreatedAt")
+  updatedAt  DateTime @updatedAt @map("UpdatedAt")
+
+  customer  Customer   @relation(fields: [customerId], references: [customerId])
+  cartItems CartItem[]
+
+  @@map("Cart")
+}
+
+model CartItem {
+  cartItemId String   @id @default(uuid()) @map("CartItemId")
+  cartId     String   @map("CartId")
+  productId  String   @map("ProductId")
+  quantity   Int      @map("Quantity")
+  createdAt  DateTime @default(now()) @map("CreatedAt")
+  updatedAt  DateTime @updatedAt @map("UpdatedAt")
+
+  cart    Cart    @relation(fields: [cartId], references: [cartId])
+  product Product @relation(fields: [productId], references: [productId])
+
+  @@unique([cartId, productId])
+  @@map("CartItem")
+}

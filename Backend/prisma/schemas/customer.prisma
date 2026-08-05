@@ -1,0 +1,40 @@
+model Customer {
+  customerId  String    @id @default(uuid()) @map("CustomerId")
+  name        String    @map("Name")
+  phone       String    @unique @map("Phone")
+  email       String?   @unique @map("Email")
+  imageURL    String?   @map("ImageURL")
+  password    String    @map("Password") @default("defaultPassword") // Default password for new customers
+  otp         String?   @map("OTP")
+  otpExpires  DateTime? @map("OTPExpires")
+  isVerified  Boolean   @default(false) @map("IsVerified")
+  createdAt   DateTime  @default(now()) @map("CreatedAt")
+  updatedAt   DateTime  @updatedAt @map("UpdatedAt")
+
+  addresses     CustomerAddress[]
+  orders        Order[]
+  couponUsages  CouponUsage[]
+  wishlist      Wishlist?
+  cart          Cart?
+  returnRequests ReturnRequest[]
+  notifications Notification[]
+
+  @@map("Customer")
+}
+
+model CustomerAddress {
+  addressId     String   @id @default(uuid()) @map("AddressId")
+  customerId    String   @map("CustomerId")
+  recipientName String   @map("RecipientName")
+  phone         String   @map("Phone")
+  addressLine   String   @map("AddressLine")
+  area          String?  @map("Area")
+  city          String   @map("City")
+  isDefault     Boolean  @default(false) @map("IsDefault")
+  createdAt     DateTime @default(now()) @map("CreatedAt")
+  updatedAt     DateTime @updatedAt @map("UpdatedAt")
+
+  customer Customer @relation(fields: [customerId], references: [customerId])
+
+  @@map("CustomerAddress")
+}

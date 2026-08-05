@@ -1,0 +1,15 @@
+model Banner {
+    bannerId    String    @id @default(uuid()) @map("BannerId")
+    title       String    @map("Title")
+    subTitle    String?   @map("SubTitle")
+    link        String?   @map("Link")
+    buttonText  String?   @map("ButtonText")
+    imageURL    String    @map("ImageURL")
+    status      String    @map("Status")
+    orderIndex  Int       @map("OrderIndex")
+    displayType String    @map("DisplayType") @default("DESKTOP") // {desktop, mobile, tablet}
+    createdAt   DateTime  @default(now()) @map("CreatedAt")
+    updatedAt   DateTime  @updatedAt @map("UpdatedAt")
+
+    @@map("Banner")
+}

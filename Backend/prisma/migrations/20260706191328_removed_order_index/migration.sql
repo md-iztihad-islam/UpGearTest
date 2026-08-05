@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Coupon" ADD COLUMN     "Used" INTEGER NOT NULL DEFAULT 0;
