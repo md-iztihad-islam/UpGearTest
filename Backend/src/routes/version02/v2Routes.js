@@ -3,7 +3,7 @@ import bannerRoutes from '../../modules/banner/bannerRoutes.js';
 import brandRoutes from '../../modules/brand/brandRoutes.js';
 import couponRoutes from '../../modules/coupon/couponRoutes.js';
 import categoryRoutes from '../../modules/category/categoryRoutes.js';
-import subCategoryRoutes from '../../modules/subCategory/subCategoryRoutes.js';
+import subCategoryRoutes from '../../modules/subcategory/subCategoryRoutes.js';
 import filterRoutes from '../../modules/filter/filterRoutes.js';
 import filterItemRoutes from '../../modules/filterItem/filterItemRoutes.js';
 import specificationRoutes from '../../modules/specification/specificationRoutes.js';
