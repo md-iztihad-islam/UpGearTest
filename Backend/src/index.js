@@ -1,5 +1,5 @@
 import express from "express";
-import { SERVER_PORT } from "./config/serverConfig.js";
+import { FRONTEND_URL, SERVER_PORT } from "./config/serverConfig.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import dbConfig from "./config/dbConfig.js";
@@ -15,7 +15,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(cors({
-    origin: "http://localhost:5173",
+    origin: FRONTEND_URL || "http://localhost:5173",
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
 }));
