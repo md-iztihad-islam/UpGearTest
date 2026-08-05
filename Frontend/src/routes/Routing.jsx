@@ -49,7 +49,7 @@ const EditExpense = lazy(() => import("@/dashboard/expensesControl/manageExpense
 // Dashboard - Store Control
 import AddStore from "@/dashboard/storeControl/addStore/addStore";
 import StoreControl from "@/dashboard/storeControl/storeControl";
-import ManageStore from "@/dashboard/storeControl/manageStore/manageStore";
+import ManageStore from "@/dashboard/storeControl/manageStore/ManageStore";
 import EditStore from "@/dashboard/storeControl/manageStore/UpdateStore";
 
 // Dashboard - Banner Control
