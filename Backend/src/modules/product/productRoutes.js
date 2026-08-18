@@ -3,8 +3,12 @@ import {
 	addProductController,
 	deleteProductByIdController,
 	getAllProductsController,
+	getDiscountedController,
+	getHotDealsController,
+	getNewArrivalsController,
 	getProductByIdController,
 	getProductBySlugController,
+	searchProductsController,
 	updateProductByIdController,
 } from "./productControllers.js";
 import { s3Uploader } from "../../config/multerConfig.js";
@@ -31,5 +35,9 @@ router.put(
 );
 router.delete("/delete-product-by-id/:productId", deleteProductByIdController);
 router.get("/get-product-by-slug/:slug", getProductBySlugController);
+router.get("/search-products", searchProductsController);
+router.get("/get-new-arrivals", getNewArrivalsController);
+router.get("/get-discounted-products", getDiscountedController);
+router.get("/get-hot-deals", getHotDealsController);
 
 export default router;

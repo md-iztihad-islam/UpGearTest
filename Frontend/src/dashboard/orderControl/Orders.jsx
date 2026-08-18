@@ -20,6 +20,13 @@ function Orders() {
             color: "from-green-600 to-green-700"
         },
         {
+            path: "shipped-orders",
+            title: "Shipped Orders",
+            icon: RotateCcw,
+            description: "View orders that are on the way",
+            color: "from-blue-600 to-blue-700"
+        },
+        {
             path: "cancelled-orders",
             title: "Cancelled Orders",
             icon: XCircle,

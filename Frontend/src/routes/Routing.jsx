@@ -51,6 +51,7 @@ import AddStore from "@/dashboard/storeControl/addStore/addStore";
 import StoreControl from "@/dashboard/storeControl/storeControl";
 import ManageStore from "@/dashboard/storeControl/manageStore/ManageStore";
 import EditStore from "@/dashboard/storeControl/manageStore/UpdateStore";
+import ShippedOrders from "@/dashboard/orderControl/receivedOrders/ShippedOrders";
 
 // Dashboard - Banner Control
 const Banner = lazy(() => import("@/dashboard/bannerControl/Banner"));
@@ -130,6 +131,8 @@ const Orders = lazy(() => import("@/dashboard/orderControl/Orders"));
 const PendingOrders = lazy(() => import("@/dashboard/orderControl/receivedOrders/PendingOrders"));
 const AcceptedOrders = lazy(() => import("@/dashboard/orderControl/receivedOrders/AccpetedOrders"));
 const OrderDetails = lazy(() => import("@/dashboard/orderControl/receivedOrders/OrderDetails"));
+const shippedOrders = lazy(() => import("@/dashboard/orderControl/receivedOrders/ShippedOrders"));
+const cancelledOrders = lazy(() => import("@/dashboard/orderControl/receivedOrders/CancelledOrders"));
 
 const CustomerControl = lazy(() => import("@/dashboard/customerControl/CustomerControl"));
 const CustomerDetails = lazy(() => import("@/dashboard/customerControl/CustomerDetails"));
@@ -268,6 +271,8 @@ function Routing() {
                 <Route path="ordercontrol/accepted-orders/details/:orderId" element={<Suspense fallback={<UpGearLoader />}><OrderDetails /></Suspense>} />
                 <Route path="ordercontrol/cancelled-orders" element={<Suspense fallback={<UpGearLoader />}><CancelledOrders /></Suspense>} />
                 <Route path="ordercontrol/cancelled-orders/details/:orderId" element={<Suspense fallback={<UpGearLoader />}><OrderDetails /></Suspense>} />
+                <Route path="ordercontrol/shipped-orders" element={<Suspense fallback={<UpGearLoader />}><ShippedOrders /></Suspense>} />
+                <Route path="ordercontrol/shipped-orders/details/:orderId" element={<Suspense fallback={<UpGearLoader />}><OrderDetails /></Suspense>} />
 
                 {/* Employee Control */}
                 <Route path="employeecontrol" element={<Suspense fallback={<UpGearLoader />}><Employees /></Suspense>} />

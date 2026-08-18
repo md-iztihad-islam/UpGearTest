@@ -53,6 +53,9 @@ export const getAllBrandsRepository = async () => {
             orderBy: {
                 title: 'asc',
             },
+            include: {
+                subCategory: true,
+            },
         });
         return response;
     } catch (error) {
@@ -69,12 +72,37 @@ export const getBrandByIdRepository = async (brandId) => {
             where: {
                 brandId: brandId,
             },
+            include: {
+                subCategory: true,
+            },
         });
         return response;
     } catch (error) {
         console.log("Error in getBrandByIdRepository:", error);
         return {
             message: "Error fetching brand by ID in repository",
+        }
+    }
+}
+
+export const getBrandsBySubCategoryIdRepository = async (subCategoryId) => {
+    try {
+        const response = await prisma.brand.findMany({  
+            where: {
+                subCategoryId: subCategoryId,
+            },
+            orderBy: {
+                title: 'asc',
+            },
+            include: {
+                subCategory: true,
+            },
+        });
+        return response;
+    } catch (error) {
+        console.log("Error in getBrandsBySubCategoryIdRepository:", error); 
+        return {
+            message: "Error fetching brands by subCategoryId in repository",
         }
     }
 }

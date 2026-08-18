@@ -28,6 +28,7 @@ model SubCategory {
   filterItems    FilterItem[]
   specifications Specification[]
   groups         Group[]
+  brands         Brand[]
 
   @@map("SubCategory")
 }

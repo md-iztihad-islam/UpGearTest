@@ -2,8 +2,12 @@ import {
 	addProductRepository,
 	deleteProductByIdRepository,
 	getAllProductsRepository,
+	getDiscountedRepository,
+	getHotDealsRepository,
+	getNewArraivalsRepository,
 	getProductByIdRepository,
 	getProductBySlugRepository,
+	searchProductsRepository,
 	updateProductByIdRepository,
 } from "./productRepositories.js";
 
@@ -76,6 +80,54 @@ export const getProductbySlugService = async (slug) => {
 		console.log("Error in getProductbySlugService:", error);
 		return {
 			message: "Error fetching product by slug in service",
+		};
+	}
+}
+
+export const searchProductsService = async (searchTerm, page, limit, sortBy) => {
+	try {
+		const products = await searchProductsRepository(searchTerm, page, limit, sortBy);;
+		return products;
+	} catch (error) {
+		console.log("Error in searchProductsService:", error);
+		return {
+			message: "Error searching products in service",
+		};
+	}
+}
+
+export const getNewArraivalsService = async (page=1, limit=10, sortBy) => {
+	try {
+		const products = await getNewArraivalsRepository(page, limit, sortBy);
+		return products;
+	} catch (error) {
+		console.log("Error in getNewArraivalsService:", error);
+		return {
+			message: "Error fetching new arrivals in service",
+		};
+	}
+}
+
+export const getHotDealsService = async (page=1, limit=10, sortBy) => {
+	try {
+		const products = await getHotDealsRepository(page, limit, sortBy);
+		return products;
+	} catch (error) {
+		console.log("Error in getHotDealsService:", error);
+		return {
+			message: "Error fetching hot deals in service",
+		};
+	}
+}
+
+export const getDiscountedService = async (page=1, limit=10, sortBy) => {
+	try {
+		const products = await getDiscountedRepository(page, limit, sortBy);
+		return products;
+	} catch (error) {
+		console.log("Error in getDiscountedService:", error);
+		return {
+			message: "Error fetching discounted products in service",
 		};
 	}
 }

@@ -2,8 +2,12 @@ import {
 	addProductService,
 	deleteProductByIdService,
 	getAllProductsService,
+	getDiscountedService,
+	getHotDealsService,
+	getNewArraivalsService,
 	getProductByIdService,
 	getProductbySlugService,
+	searchProductsService,
 	updateProductByIdService,
 } from "./productServices.js";
 
@@ -428,3 +432,119 @@ export const getProductBySlugController = async (req, res) => {
 		});
 	}
 };
+
+// searchProductsController.js
+export const searchProductsController = async (req, res) => {
+	try {
+		const { query } = req.query;
+
+		if (!query) {
+			return res.status(400).json({
+				success: false,
+				message: "Search query is required",
+			});
+		}
+
+		const searchTerm = query.trim();
+		const page = parseInt(req.query.page, 10) || 1;
+		const limit = parseInt(req.query.limit, 10) || 10;
+		const sortBy = req.query.sortBy || "createdAt";
+
+		const response = await searchProductsService(searchTerm, page, limit, sortBy); // now forwarded
+
+		return res.status(200).json({
+			success: true,
+			data: response, // { products, page, limit }
+		});
+	} catch (error) {
+		console.log("Error in searchProductsController:", error);
+		return res.status(500).json({
+			success: false,
+			message: error.message || "Error searching products in controller",
+		});
+	}
+};
+
+export const getNewArrivalsController = async (req, res) => {
+	try {
+		const page = parseInt(req.query.page, 10) || 1;
+		const limit = parseInt(req.query.limit, 10) || 10;
+		const sortBy = req.query.sortBy || "createdAt";
+
+		const response = await getNewArraivalsService(page, limit, sortBy);
+
+		if (!response || response.message) {
+			return res.status(500).json({
+				success: false,
+				message: response?.message || "Error fetching new arrivals",
+			});
+		}
+
+		return res.status(200).json({
+			success: true,
+			data: response,
+		});
+	} catch (error) {
+		console.log("Error in getNewArrivalsController:", error);
+		return res.status(500).json({
+			success: false,
+			message: error.message || "Error fetching new arrivals in controller",
+		});
+	}
+}
+
+export const getHotDealsController = async (req, res) => {
+	try {
+		const page = parseInt(req.query.page, 10) || 1;
+		const limit = parseInt(req.query.limit, 10) || 10;
+		const sortBy = req.query.sortBy || "createdAt";
+
+		const response = await getHotDealsService(page, limit, sortBy);
+
+		if (!response || response.message) {
+			return res.status(500).json({
+				success: false,
+				message: response?.message || "Error fetching hot deals",
+			});
+		}
+
+		return res.status(200).json({
+			success: true,
+			data: response,
+		});
+	} catch (error) {
+		console.log("Error in getHotDealsController:", error);
+		return res.status(500).json({
+			success: false,
+			message: error.message || "Error fetching hot deals in controller",
+		});
+	}
+};
+
+export const getDiscountedController = async (req, res) => {
+	try {
+		const page = parseInt(req.query.page, 10) || 1;
+		const limit = parseInt(req.query.limit, 10) || 10;
+		const sortBy = req.query.sortBy || "createdAt";
+
+		const response = await getDiscountedService(page, limit, sortBy);
+
+		if (!response || response.message) {
+			return res.status(500).json({
+				success: false,
+				message: response?.message || "Error fetching discounted products",
+			});
+		}
+
+		return res.status(200).json({
+			success: true,
+			data: response,
+		});
+	} catch (error) {
+		console.log("Error in getDiscountedController:", error);
+		return res.status(500).json({
+			success: false,
+			message: error.message || "Error fetching discounted products in controller",
+		});
+	}
+}

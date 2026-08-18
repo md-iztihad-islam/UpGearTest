@@ -1,9 +1,40 @@
 import { prisma } from "../../utils/prisma.js";
 
+const generateOrderId = async (tx) => {
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const yy = String(now.getFullYear()).slice(-2);
+    const dd = String(now.getDate()).padStart(2, "0");
+
+    const datePrefix = `${mm}${yy}${dd}`;
+
+    // Count today's orders (00:00:00 to 23:59:59.999 local/UTC — pick consistently)
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    const countToday = await tx.order.count({
+        where: {
+            createdAt: {
+                gte: startOfDay,
+                lte: endOfDay,
+            },
+        },
+    });
+
+    const sequenceNumber = String(countToday + 1).padStart(3, "0"); // 001, 002, ...
+
+    return `${datePrefix}${sequenceNumber}`;
+};
+
 export const addOrderRepository = async (orderData, tx = prisma) => {
     try {
+        const orderId = await generateOrderId(tx);
+
         const response = await tx.order.create({
-            data: orderData,
+            data: {
+                ...orderData,
+                orderId,
+            },
         });
         return response;
     } catch (error) {
@@ -122,12 +153,15 @@ export const getAllShippedOrdersRepository = async (startDate, endDate, tx = pri
 
 export const getAllCanceledOrdersRepository = async (startDate, endDate, tx = prisma) => {
     try {
+        const start = new Date(`${startDate}T00:00:00.000Z`);
+        const end   = new Date(`${endDate}T23:59:59.999Z`);
+
         const response = await tx.order.findMany({
             where: {
                 orderStatus: "CANCELED",
                 createdAt: {
-                    gte: startDate,
-                    lte: endDate,
+                    gte: start,
+                    lte: end,
                 },
             },
             include: {

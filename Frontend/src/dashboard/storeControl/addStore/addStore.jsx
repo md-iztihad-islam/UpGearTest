@@ -30,7 +30,6 @@ const INITIAL = {
     email: "",
     password: "",
     status: "active",
-    orderIndex: "",
 };
 
 function AddStore() {
@@ -62,12 +61,9 @@ function AddStore() {
         if (!form.phone.trim()) return window.showToast("Phone is required.", "error");
         if (!form.email.trim()) return window.showToast("Email is required.", "error");
         if (!form.password.trim()) return window.showToast("Password is required.", "error");
-        if (form.orderIndex === "" || isNaN(Number(form.orderIndex)))
-            return window.showToast("Order index must be a number.", "error");
 
         mutate({
-            ...form,
-            orderIndex: Number(form.orderIndex),
+            ...form
         });
     };
 
@@ -118,18 +114,6 @@ function AddStore() {
                                 </Field>
                             </div>
 
-                            <div className="grid sm:grid-cols-2 gap-5">
-                                <Field label="Order Index" icon={SortAsc}>
-                                    <input
-                                        type="number"
-                                        value={form.orderIndex}
-                                        onChange={set("orderIndex")}
-                                        placeholder="0"
-                                        className={inputCls}
-                                        required
-                                    />
-                                </Field>
-                            </div>
 
                             <Field label="Address" icon={MapPin}>
                                 <input

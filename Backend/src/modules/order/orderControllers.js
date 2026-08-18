@@ -174,6 +174,8 @@ export const acceptMultiplePendingOrdersController = async (req, res) => {
         for (const orderId of orderIds) {
             await acceptOrderService(orderId);
         }
+
+        return res.status(200).json({ message: "Orders accepted successfully" });
     } catch (error) {
         console.error("Error accepting multiple orders:", error);
         return res.status(500).json({ message: "Internal server error" });
@@ -189,6 +191,8 @@ export const cancelMultiplePendingOrdersController = async (req, res) => {
         for (const orderId of orderIds) {
             await cancelOrderService(orderId);
         }
+
+        return res.status(200).json({ message: "Orders canceled successfully" });
     } catch (error) {
         console.error("Error canceling multiple orders:", error);
         return res.status(500).json({ message: "Internal server error" });
@@ -205,6 +209,7 @@ export const shipMultipleAcceptedOrdersController = async (req, res) => {
             await shipOrderService(orderId);
         }
 
+        return res.status(200).json({ message: "Orders shipped successfully" });
     } catch (error) {
         console.error("Error shipping multiple orders:", error);
         return res.status(500).json({ message: "Internal server error" });
@@ -219,6 +224,7 @@ export const cancelMultipleAcceptedOrdersController = async (req, res) => {
             await cancelAcceptedOrShippedOrderService(orderId);
         }
 
+        return res.status(200).json({ message: "Orders canceled successfully" });
     } catch (error) {
         console.error("Error canceling multiple accepted orders:", error);
         return res.status(500).json({ message: "Internal server error" });
@@ -232,9 +238,10 @@ export const cancelMultipleShippedOrdersController = async (req, res) => {
         const { orderIds } = req.body;
 
         for (const orderId of orderIds) {
-            await cancelAcceptedOrShippedOrderController(orderId);
+            await cancelAcceptedOrShippedOrderService(orderId);
         }
 
+        return res.status(200).json({ message: "Orders canceled successfully" });
     } catch (error) {
         console.error("Error canceling multiple shipped orders:", error);
         return res.status(500).json({ message: "Internal server error" });

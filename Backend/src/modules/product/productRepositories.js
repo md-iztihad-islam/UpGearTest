@@ -447,3 +447,271 @@ export const getProductBySlugRepository = async (slug) => {
 		return { message: "Error fetching product by slug in repository" };
 	}
 };
+
+// searchProductsRepository.js
+export const searchProductsRepository = async (searchTerm, page = 1, limit = 10, sortBy) => {
+	const offset = (page - 1) * limit;
+
+	const sortOptions = {
+		"price-asc": { price: "asc" },
+		"price-desc": { price: "desc" },
+		"name-asc": { title: "asc" },   // fixed: title, not name
+		"name-desc": { title: "desc" }, // fixed
+		newest: { createdAt: "desc" },
+		oldest: { createdAt: "asc" },
+	};
+
+	const products = await prisma.product.findMany({
+		where: {
+			OR: [
+				{ title: { contains: searchTerm, mode: "insensitive" } },    // fixed: title, not name
+				{ subTitle: { contains: searchTerm, mode: "insensitive" } }, // fixed: subTitle, not description
+			],
+		},
+		orderBy: sortOptions[sortBy] || { createdAt: "desc" },
+		skip: offset,
+		take: limit,
+		include: {
+			group: { /* unchanged */ 
+				select: {
+					groupId: true, description: true, insideDhakaCharge: true, outsideDhakaCharge: true,
+					category: true, subCategory: true, brand: true, warranty: true,
+					descriptionImages: { orderBy: { orderIndex: "asc" } },
+					keyFeatures: { orderBy: { createdAt: "asc" } },
+					tags: { orderBy: { createdAt: "asc" } },
+					productSpecifications: {
+						orderBy: { createdAt: "asc" },
+						select: { productSpecificationId: true, value: true, specification: { select: { title: true } } },
+					},
+				},
+			},
+			coupon: { select: { code: true } },
+			images: { orderBy: { orderIndex: "asc" } },
+			stocks: {
+				where: { status: "available" },
+				select: { stockId: true, remaining: true, reserved: true, status: true },
+			},
+		},
+	});
+
+	return { products, page, limit };
+};
+
+export const getNewArraivalsRepository = async (page=1, limit=10, sortBy) => {
+	try {
+		const offset = (page - 1) * limit;
+		const sortOptions = {
+			"price-asc": { price: "asc" },
+			"price-desc": { price: "desc" },
+		}
+
+		const products = await prisma.product.findMany({
+			where: {
+				isNewArrival: true,
+			},
+			orderBy: sortOptions[sortBy] || { createdAt: "desc" },
+			skip: offset,
+			take: limit,
+			include: {
+				group: {
+					select: {
+						groupId: true,
+						description: true,
+						insideDhakaCharge: true,
+						outsideDhakaCharge: true,
+						category: true,
+						subCategory: true,
+						brand: true,
+						warranty: true,
+						descriptionImages: {
+							orderBy: { orderIndex: "asc" },
+						},
+						keyFeatures: {
+							orderBy: { createdAt: "asc" },
+						},
+						tags: {
+							orderBy: { createdAt: "asc" },
+						},
+						productSpecifications: {
+							orderBy: { createdAt: "asc" },
+							select: {
+								productSpecificationId: true,
+								value: true,
+								specification: {
+									select: {
+										title: true,
+									},
+								},
+							},
+						},
+					},
+				},
+				coupon: {
+					select: { code: true },
+				},
+				images: {
+					orderBy: { orderIndex: "asc" },
+				},
+				stocks: {
+					where: { status: "available" },
+					select: {
+						stockId: true,
+						remaining: true,
+						status: true,
+					},
+				}
+			},
+		});
+
+		return { products, page, limit };
+	} catch (error) {
+		console.log("Error in getNewArraivalsRepository:", error);
+		return { message: "Error fetching new arrivals in repository" };
+	}
+}
+
+export const getHotDealsRepository = async (page=1, limit=10, sortBy) => {
+	try {
+		const offset = (page - 1) * limit;
+		const sortOptions = {
+			"price-asc": { price: "asc" },
+			"price-desc": { price: "desc" },
+		}
+
+		const products = await prisma.product.findMany({
+			where: {
+				isHotDeal: true,
+			},
+			orderBy: sortOptions[sortBy] || { createdAt: "desc" },
+			skip: offset,
+			take: limit,
+			include: {
+				group: {
+					select: {
+						groupId: true,
+						description: true,
+						insideDhakaCharge: true,
+						outsideDhakaCharge: true,
+						category: true,
+						subCategory: true,
+						brand: true,
+						warranty: true,
+						descriptionImages: {
+							orderBy: { orderIndex: "asc" },
+						},
+						keyFeatures: {
+							orderBy: { createdAt: "asc" },
+						},
+						tags: {
+							orderBy: { createdAt: "asc" },
+						},
+						productSpecifications: {
+							orderBy: { createdAt: "asc" },
+							select: {
+								productSpecificationId: true,
+								value: true,
+								specification: {
+									select: {
+										title: true,
+									},
+								},
+							},
+						},
+					},
+				},
+				coupon: {
+					select: { code: true },
+				},
+				images: {
+					orderBy: { orderIndex: "asc" },
+				},
+				stocks: {
+					where: { status: "available" },
+					select: {
+						stockId: true,
+						remaining: true,
+						status: true,
+					},
+				}
+			},
+		});
+
+		return { products, page, limit };
+	} catch (error) {
+		console.log("Error in getHotDealsRepository:", error);
+		return { message: "Error fetching hot deals in repository" };
+	}
+}
+
+export const getDiscountedRepository = async (page=1, limit=10, sortBy) => {
+	try {
+		const offset = (page - 1) * limit;
+		const sortOptions = {
+			"price-asc": { price: "asc" },
+			"price-desc": { price: "desc" },
+		}
+
+		const products = await prisma.product.findMany({
+			where: {
+				isDiscounted: true,
+			},
+			orderBy: sortOptions[sortBy] || { createdAt: "desc" },
+			skip: offset,
+			take: limit,
+			include: {
+				group: {
+					select: {
+						groupId: true,
+						description: true,
+						insideDhakaCharge: true,
+						outsideDhakaCharge: true,
+						category: true,
+						subCategory: true,
+						brand: true,
+						warranty: true,
+						descriptionImages: {
+							orderBy: { orderIndex: "asc" },
+						},
+						keyFeatures: {
+							orderBy: { createdAt: "asc" },
+						},
+						tags: {
+							orderBy: { createdAt: "asc" },
+						},
+						productSpecifications: {
+							orderBy: { createdAt: "asc" },
+							select: {
+								productSpecificationId: true,
+								value: true,
+								specification: {
+									select: {
+										title: true,
+									},
+								},
+							},
+						},
+					},
+				},
+				coupon: {
+					select: { code: true },
+				},
+				images: {
+					orderBy: { orderIndex: "asc" },
+				},
+				stocks: {
+					where: { status: "available" },
+					select: {
+						stockId: true,
+						remaining: true,
+						status: true,
+					},
+				}
+			},
+		});
+
+		return { products, page, limit };
+	} catch (error) {
+		console.log("Error in getDiscountedRepository:", error);
+		return { message: "Error fetching discounteds in repository" };
+	}
+}

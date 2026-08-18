@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-const EMPTY_FORM = { title: "", subTitle: "", description: "", orderIndex: "", isActive: true };
+const EMPTY_FORM = { title: "", subTitle: "", description: "", isActive: true };
 
 function ConfirmDialog({ message, subMessage, confirmLabel, confirmClass, onConfirm, onCancel }) {
     return (
@@ -60,12 +60,10 @@ function WarrantyForm({ initial = EMPTY_FORM, onSubmit, isPending, onCancel, isE
     const handleSubmit = (e) => {
         e.preventDefault();
         if (!form.title.trim()) return Toast("Title is required", "error");
-        if (form.orderIndex === "") return Toast("Order index is required", "error");
         onSubmit({
             title: form.title.trim(),
             subTitle: form.subTitle.trim() || null,
             description: form.description.trim() || null,
-            orderIndex: Number(form.orderIndex),
             status: form.isActive ? "Active" : "Inactive",
         });
     };
@@ -84,9 +82,6 @@ function WarrantyForm({ initial = EMPTY_FORM, onSubmit, isPending, onCancel, isE
                 <textarea className={`${inputCls} resize-none`} value={form.description} onChange={set("description")} placeholder="Warranty terms and details" rows={3} />
             </Field>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Order index" icon={ArrowUpDown} iconColor="text-gray-400" hint="Display order">
-                    <input className={inputCls} value={form.orderIndex} onChange={set("orderIndex")} type="number" min="0" placeholder="0" required />
-                </Field>
                 <Field label="Status" icon={Eye} iconColor="text-gray-400">
                     <div className="flex items-center gap-3 h-10">
                         <button
@@ -179,7 +174,6 @@ function WarrantyRow({ warranty, onToggle, onDelete, onEdit, isTogglePending, is
                         <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-bold text-white truncate">{warranty.title}</span>
                             <StatusBadge active={isActive} />
-                            <span className="text-[0.62rem] text-gray-600 font-mono bg-white/5 px-1.5 py-px rounded shrink-0">#{warranty.orderIndex}</span>
                         </div>
                         <p className="text-xs text-gray-500 truncate mt-1">{warranty.subTitle || "No subtitle"}</p>
                     </div>
@@ -235,7 +229,6 @@ function EditPanel({ warranty, onSave, onCancel, isPending }) {
         title: warranty.title ?? "",
         subTitle: warranty.subTitle ?? "",
         description: warranty.description ?? "",
-        orderIndex: warranty.orderIndex ?? "",
         isActive: warranty.status === "Active",
     };
     return (

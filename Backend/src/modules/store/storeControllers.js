@@ -10,6 +10,8 @@ export const addStoreController = async (req, res) => {
     try {
         const storeData = { ...req.body };
 
+        console.log("Received store data:", storeData);
+
         if (!storeData.title) {
             return res.status(400).json({
                 success: false,
@@ -49,14 +51,6 @@ export const addStoreController = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: "Store status is required",
-            });
-        }
-
-        const parsedOrderIndex = Number.parseInt(storeData.orderIndex, 10);
-        if (Number.isNaN(parsedOrderIndex)) {
-            return res.status(400).json({
-                success: false,
-                message: "Store orderIndex must be a valid number",
             });
         }
 

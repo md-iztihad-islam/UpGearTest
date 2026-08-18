@@ -4,6 +4,7 @@ import {
     updateBrandByIdService,
     getAllBrandsService,
     getBrandByIdService,
+    getBrandsBySubCategoryIdService,
 } from "./brandServices.js";
 
 export const addBrandController = async (req, res) => {
@@ -17,10 +18,10 @@ export const addBrandController = async (req, res) => {
             });
         }
 
-        if (!brandData.productType) {
+        if (!brandData.subCategoryId) {
             return res.status(400).json({ 
                 success: false, 
-                message: "Brand productType is required" 
+                message: "Brand subCategoryId is required" 
             });
         }
 
@@ -175,5 +176,38 @@ export const deleteBrandByIdController = async (req, res) => {
         return res.status(500).json({ 
             success: false, 
             message: error.message || "Error deleting brand in controller" });
+    }
+};
+
+export const getBrandsBySubCategoryIdController = async (req, res) => {
+    try {
+        const subCategoryId = req.params.subCategoryId;
+
+        if (!subCategoryId) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "SubCategory id is required" 
+            });
+        }
+
+        const response = await getBrandsBySubCategoryIdService(subCategoryId);
+
+        if (!response || response.message) {
+            return res.status(404).json({ 
+                success: false, 
+                message: response?.message || "Brands not found for the given subCategoryId" 
+            });
+        }
+
+        return res.status(200).json({ 
+            success: true, 
+            data: response 
+        });
+    } catch (error) {
+        console.log("Error in getBrandsBySubCategoryIdController:", error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Error fetching brands by subCategoryId in controller"
+        });
     }
 };

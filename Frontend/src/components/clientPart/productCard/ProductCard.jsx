@@ -1,270 +1,193 @@
-import { Heart, ShoppingCart, Star, PackageX, Zap } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import cartStore from "@/state/clientPart/cartStore";
-import getStockByProductIdWOPriceApi from "@/services/dashboard/stock/getStockByProductIdWOPrice";
-import { useQuery } from "@tanstack/react-query";
+import { ShoppingBag, ShoppingCart, Heart } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
 
-// Skeleton Loader
-const ProductCardSkeleton = () => (
-    <div className="w-[280px] sm:w-[260px] rounded-2xl overflow-hidden bg-gray-100 animate-pulse border border-gray-200">
-        <div className="w-[280px] sm:w-[260px] h-[280px] sm:h-[260px] bg-gray-200"></div>
-        <div className="p-4 space-y-2.5 bg-black">
-            <div className="flex gap-1">
-                {[...Array(5)].map((_, i) => (
-                    <div key={i} className="h-3.5 w-3.5 bg-gray-700 rounded-full"></div>
-                ))}
-            </div>
-            <div className="h-3.5 bg-gray-700 rounded w-3/4"></div>
-            <div className="h-3.5 bg-gray-700 rounded w-1/2"></div>
-            <div className="h-5 bg-gray-700 rounded w-1/3"></div>
-            <div className="h-9 bg-gray-700 rounded w-full mt-3"></div>
-        </div>
-    </div>
-);
+/**
+ * Color tokens pulled directly from the Figma "Selection colors" panels.
+ * Each variant = { accentDark (top-of-card glow / badge tint), border: [from, to] }.
+ * Tokens shared across every variant (white text, save-green, strike-red)
+ * live in COMMON below instead of being repeated per variant.
+ */
+const VARIANTS = {
+    discounted: {
+        // green panel
+        accentDark: "#07471A",
+        borderFrom: "#124E24",
+        borderTo: "#1A8B3C",
+    },
+    newArrival: {
+        // blue panel
+        accentDark: "#101C48",
+        borderFrom: "#2218A8",
+        borderTo: "#224D9D",
+    },
+    hotDeal: {
+        // red panel
+        accentDark: "#520608",
+        borderFrom: "#6D1819",
+        borderTo: "#6E0A0B",
+    },
+    normal: {
+        // black/gray panel — no colored border gradient, just a flat gray ring
+        accentDark: "#373737",
+        borderFrom: "#626262",
+        borderTo: "#626262",
+    },
+};
 
-const ProductCard = ({ productDetails, badge }) => {
+const COMMON = {
+    textPrimary: "#FFFFFF",
+    textSecondary: "#F5EFF7",
+    badgeBg: "#322F35",
+    save: "#66FF7D",
+    strike: "#FF7B7B",
+};
+
+/**
+ * Picks a single visual variant when a product has multiple flags set.
+ * Priority: hot deal > new arrival > discounted > normal.
+ * Adjust this order if a different precedence makes more sense for the store.
+ */
+function resolveVariant(product) {
+    if (product.isHotDeal) return "hotDeal";
+    if (product.isNewArrival) return "newArrival";
+    if (product.isDiscounted) return "discounted";
+    return "normal";
+}
+
+function formatTaka(value) {
+    const num = Number(value);
+    if (Number.isNaN(num)) return value;
+    return num.toLocaleString("en-US");
+}
+
+/**
+ * ProductCard
+ *
+ * Props:
+ * - product: shape as returned by the products list API (title, subTitle,
+ *   bannerImageURL, mainPrice, discount, price, isNewArrival, isHotDeal,
+ *   isDiscounted, slug, group.tags, stocks, ...)
+ * - onAddToCart?(product): called when the cart icon is clicked. If omitted,
+ *   the button still renders but is a no-op — wire this to your actual
+ *   cart store's add-item action.
+ * - onToggleWishlist?(product): same idea for the heart icon. No wishlist
+ *   store exists yet in this codebase, so this is left as a callback.
+ * - onBuyNow?(product): called when "Buy Now" is clicked. Defaults to
+ *   navigating to the product detail page via its slug.
+ */
+function ProductCard({ product, onAddToCart, onToggleWishlist, onBuyNow }) {
     const navigate = useNavigate();
-    const { addToCart } = cartStore();
-    const [isWishlisted, setIsWishlisted] = useState(false);
+    const variant = VARIANTS[resolveVariant(product)];
 
-    const product = productDetails || {};
-    const productId = product._id || product.id;
+    const tags = (product.group?.tags ?? []).slice(0, 4);
+    const discount = Number(product.discount) || 0;
+    const hasSavings = discount > 0;
+    const totalStock = (product.stocks ?? []).reduce((sum, s) => sum + (s.remaining || 0), 0);
+    const isOutOfStock = (product.stocks?.length ?? 0) > 0 && totalStock <= 0;
 
-    const { data: stocksData, isLoading: stockLoading, isError: stockError } = useQuery({
-        queryKey: ["stocks", productId],
-        queryFn: () => getStockByProductIdWOPriceApi(productId),
-        enabled: !!productId,
-        staleTime: 5 * 60 * 1000,
-        retry: 2,
-    });
-
-    const stock = stocksData?.data?.reduce((acc, s) => acc + (s.remainingQuantity || 0), 0) || 0;
-    const isOutOfStock = stock === 0;
-    const isLowStock = !isOutOfStock && stock > 0 && stock <= 5;
-    const hasDiscount = product?.mainPrice && product?.finalPrice && product.mainPrice > product.finalPrice;
-    const discountPercentage = hasDiscount
-        ? Math.round(((product.mainPrice - product.finalPrice) / product.mainPrice) * 100)
-        : 0;
-
-    const rating = product?.review?.reduce((acc, review) => acc + review.rating, 0) / (product?.review?.length || 1) || 0;
-
-    const handleAddToCart = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!product || isOutOfStock) return;
-
-        try {
-            addToCart({
-                id: product._id,
-                productId: product.productId,
-                title: product.title,
-                subTitle: product.subTitle,
-                image: product?.images?.[0] || product?.bannerImage,
-                mainPrice: product.mainPrice,
-                discountAmount: product.discountAmount,
-                price: product.finalPrice || product.price,
-                quantity: 1,
-                stock: stock,
-                maxQuantity: stock,
-                insideDhakaCharge: product.insideDhakaCharge,
-                outsideDhakaCharge: product.outsideDhakaCharge,
-            });
-
-            if (typeof window !== "undefined" && window.showToast) {
-                window.showToast(`${product.title} added to cart`, { type: "success" });
-            }
-        } catch (error) {
-            console.error("Error adding to cart:", error);
-        }
+    const handleBuyNow = () => {
+        if (onBuyNow) return onBuyNow(product);
+        navigate(`/products/${product.slug}`);
     };
-
-    const toggleWishlist = (e) => {
-        e.stopPropagation();
-        setIsWishlisted(!isWishlisted);
-    };
-
-    if (stockLoading) return <ProductCardSkeleton />;
-
-    if (stockError) {
-        return (
-            <div className="w-[280px] sm:w-[260px] rounded-2xl overflow-hidden border border-destructive/20 bg-destructive/5 p-5 flex flex-col items-center justify-center min-h-[200px]">
-                <PackageX className="h-10 w-10 text-destructive mb-3" />
-                <p className="text-destructive font-medium text-center text-sm mb-1">Failed to load stock information</p>
-                <p className="text-xs text-muted-foreground text-center">Please try again later</p>
-            </div>
-        );
-    }
 
     return (
         <div
-            onClick={() => navigate(`/products/${product.slug}`)}
-            className={`group w-[280px] sm:w-[260px] relative rounded-2xl overflow-hidden border border-border bg-card shadow-elegant transition-all duration-500 animate-fade-in ${
-                isOutOfStock
-                    ? "opacity-70 cursor-not-allowed"
-                    : "cursor-pointer hover:-translate-y-1 hover:shadow-xl"
-            }`}
+            className="rounded-2xl p-[1.5px] shrink-0 w-full max-w-[300px]"
+            style={{ background: `linear-gradient(160deg, ${variant.borderFrom}, ${variant.borderTo})` }}
         >
-            {/* Badges */}
-            <div className="absolute top-3 left-3 z-20 flex flex-col gap-1.5">
-                {badge === "Hot Deal" && (
-                    <Badge className="bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 px-2.5 py-1 text-xs">
-                        <Zap className="h-3 w-3 mr-1" />
-                        Hot Deal
-                    </Badge>
-                )}
-                {badge === "Discounted" && discountPercentage > 0 && !isOutOfStock && (
-                    <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0 px-2.5 py-1 text-xs">
-                        -{discountPercentage}%
-                    </Badge>
-                )}
-                {isOutOfStock && (
-                    <Badge variant="destructive" className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold animate-pulse">
-                        <PackageX className="h-3 w-3" />
-                        Sold Out
-                    </Badge>
-                )}
-                {isLowStock && !isOutOfStock && (
-                    <Badge className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-amber-500 text-white border-0">
-                        <PackageX className="h-3 w-3" />
-                        Only {stock} left
-                    </Badge>
-                )}
-            </div>
-
-            {/* Quick Actions */}
-            {!isOutOfStock && (
-                <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <Button
-                        size="icon"
-                        variant="secondary"
-                        className="h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm shadow-lg hover:bg-white border"
-                        onClick={toggleWishlist}
-                    >
-                        <Heart className={`h-3.5 w-3.5 ${isWishlisted ? "fill-red-500 text-red-500" : ""}`} />
-                    </Button>
-                </div>
-            )}
-
-            {/* Image — 1:1 ratio */}
-            <div className="relative overflow-hidden bg-muted w-[280px] sm:w-[260px] h-[280px] sm:h-[260px]">
-                <img
-                    src={product?.bannerImage || product?.images?.[0]}
-                    alt={product?.title || "Product"}
-                    className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 ${
-                        isOutOfStock ? "opacity-50" : ""
-                    }`}
-                    onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = "https://via.placeholder.com/300x300?text=No+Image";
+            <div className="rounded-2xl overflow-hidden bg-[#0B0B0B] h-full flex flex-col">
+                {/* Image area */}
+                <div
+                    className="relative aspect-square"
+                    style={{
+                        background: `radial-gradient(120% 90% at 50% 0%, ${variant.accentDark}80, transparent 65%), #0B0B0B`,
                     }}
-                />
-                {isOutOfStock && (
-                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center">
-                        <span className="text-white text-sm font-semibold bg-black/50 px-4 py-1.5 rounded-lg">
-                            Out of Stock
-                        </span>
-                    </div>
-                )}
-            </div>
-
-            {/* Content */}
-            <div className="p-4 bg-black text-white">
-
-                {/* Rating */}
-                <div className="flex items-center gap-0.5 mb-1">
-                    {[...Array(5)].map((_, i) => (
-                        <Star
-                            key={i}
-                            className={`h-3 w-3 ${
-                                i < Math.floor(rating)
-                                    ? "fill-[goldenrod] text-[goldenrod]"
-                                    : "text-gray-600"
-                            } ${isOutOfStock ? "opacity-50" : ""}`}
-                        />
-                    ))}
-                    <span className="text-[11px] text-gray-400 ml-1">
-                        ({product.review?.length || 0})
-                    </span>
-                </div>
-
-                {/* Title */}
-                <h3 className={`font-semibold text-sm mb-0.5 line-clamp-2 transition-colors ${
-                    isOutOfStock ? "text-gray-500" : "group-hover:text-accent"
-                }`}>
-                    {product?.title || "Unnamed Product"}
-                </h3>
-
-                {/* Subtitle */}
-                {product?.subTitle && (
-                    <p className={`text-xs mb-1 line-clamp-1 ${
-                        isOutOfStock ? "text-gray-500" : "text-gray-300"
-                    }`}>
-                        {product.subTitle}
-                    </p>
-                )}
-
-                {/* Price */}
-                <div className="flex items-center gap-2 mb-3">
-                    <span className={`text-base font-bold ${
-                        isOutOfStock ? "text-gray-500" : "text-white"
-                    }`}>
-                        ৳{product?.finalPrice || product?.price || "0.00"}
-                    </span>
-                    {hasDiscount && product?.mainPrice && (
-                        <span className="text-xs text-gray-400 line-through">
-                            ৳{product.mainPrice}
-                        </span>
-                    )}
-                    {hasDiscount && discountPercentage > 0 && !isOutOfStock && (
-                        <span className="text-xs font-semibold text-green-400">
-                            Save {discountPercentage}%
-                        </span>
-                    )}
-                </div>
-
-                {/* Add to Cart Button */}
-                <Button
-                    className={`w-full transition-all duration-300 cursor-pointer h-9 text-sm ${
-                        isOutOfStock
-                            ? "bg-gray-700 text-gray-500 hover:bg-gray-700 border-gray-700"
-                            : "bg-primary hover:bg-white hover:text-black hover:shadow-lg"
-                    }`}
-                    size="sm"
-                    onClick={handleAddToCart}
-                    disabled={isOutOfStock}
-                    type="button"
                 >
-                    {isOutOfStock ? (
-                        <>
-                            <PackageX className="h-3.5 w-3.5 mr-1.5" />
-                            Out of Stock
-                        </>
-                    ) : isLowStock ? (
-                        <>
-                            <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
-                            Buy Now — Only {stock} left!
-                        </>
-                    ) : (
-                        <>
-                            <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
-                            Add to Cart
-                        </>
-                    )}
-                </Button>
-            </div>
+                    <img
+                        src={product.bannerImageURL}
+                        alt={product.title}
+                        className="w-full h-full object-contain p-4"
+                        loading="lazy"
+                    />
 
-            {/* Hover Effect Border */}
-            {!isOutOfStock && (
-                <div className="absolute inset-0 border-2 border-transparent group-hover:border-accent/20 rounded-2xl pointer-events-none transition-all duration-500"></div>
-            )}
+                    {isOutOfStock && (
+                        <div className="absolute top-2 right-2 rounded-md bg-black/70 px-2 py-1 text-[10px] font-semibold text-white/80 uppercase tracking-wide">
+                            Out of stock
+                        </div>
+                    )}
+
+                    {/* Buy Now / cart / wishlist bar */}
+                    <div className="absolute inset-x-0 bottom-0 flex items-center gap-2.5 bg-black/55 backdrop-blur-sm px-3 py-2.5">
+                        <button
+                            onClick={handleBuyNow}
+                            className="flex items-center gap-1.5 text-sm font-semibold text-white hover:opacity-80 transition-opacity"
+                        >
+                            <ShoppingBag className="h-4 w-4" />
+                            Buy Now
+                        </button>
+                        <span className="h-4 w-px bg-white/25" />
+                        <button
+                            onClick={() => onAddToCart?.(product)}
+                            aria-label="Add to cart"
+                            className="text-white hover:opacity-80 transition-opacity"
+                        >
+                            <ShoppingCart className="h-4 w-4" />
+                        </button>
+                        <button
+                            onClick={() => onToggleWishlist?.(product)}
+                            aria-label="Add to wishlist"
+                            className="text-white hover:opacity-80 transition-opacity"
+                        >
+                            <Heart className="h-4 w-4" />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Body */}
+                <div className="flex-1 flex flex-col gap-2.5 p-4">
+                    <h3
+                        className="text-base font-bold leading-snug line-clamp-2"
+                        style={{ color: COMMON.textPrimary }}
+                    >
+                        {product.title}
+                    </h3>
+
+                    {tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                            {tags.map((t) => (
+                                <span
+                                    key={t.tagId}
+                                    className="px-2.5 py-1 rounded-full text-[11px] font-medium"
+                                    style={{ backgroundColor: COMMON.badgeBg, color: COMMON.textSecondary }}
+                                >
+                                    {t.tag}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="flex items-baseline gap-2 mt-auto pt-1">
+                        <span className="text-lg font-bold" style={{ color: COMMON.textPrimary }}>
+                            {formatTaka(product.price)} ৳
+                        </span>
+                        {hasSavings && (
+                            <>
+                                <span
+                                    className="text-sm line-through"
+                                    style={{ color: COMMON.strike }}
+                                >
+                                    {formatTaka(product.mainPrice)}৳
+                                </span>
+                                <span className="text-sm font-semibold" style={{ color: COMMON.save }}>
+                                    Save {discount}%
+                                </span>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
         </div>
     );
-};
+}
 
 export default ProductCard;
-
-
-// This is for Homepage only

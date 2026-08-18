@@ -20,6 +20,8 @@ const slugify = (text) =>
         .replace(/[\s_-]+/g, "-")
         .replace(/^-+|-+$/g, "");
 
+const buildSlug = (title, subTitle) => slugify(`${title} ${subTitle}`.trim());
+
 function AddProduct() {
     const navigate = useNavigate();
 
@@ -98,7 +100,15 @@ function AddProduct() {
         setFormData((prev) => ({
             ...prev,
             title: value,
-            slug: slugTouched ? prev.slug : slugify(value),
+            slug: slugTouched ? prev.slug : buildSlug(value, prev.subTitle),
+        }));
+    };
+
+    const handleSubTitleChange = (value) => {
+        setFormData((prev) => ({
+            ...prev,
+            subTitle: value,
+            slug: slugTouched ? prev.slug : buildSlug(prev.title, value),
         }));
     };
 
@@ -296,7 +306,7 @@ function AddProduct() {
                                     <input
                                         type="text"
                                         value={formData.subTitle}
-                                        onChange={(e) => handleFieldChange("subTitle", e.target.value)}
+                                        onChange={(e) => handleSubTitleChange(e.target.value)}
                                         className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition"
                                         placeholder="Optional"
                                     />

@@ -51,7 +51,7 @@ export const getAllStoresRepository = async () => {
     try {
         const response = await prisma.store.findMany({
             orderBy: {
-                orderIndex: "asc",
+                createdAt: "desc",
             },
         });
         return response;

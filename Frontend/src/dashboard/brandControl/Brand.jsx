@@ -10,11 +10,12 @@ import {
     Pencil, X, Link2, FileText, Package, ChevronDown, ChevronUp, Search
 } from "lucide-react";
 import { useState } from "react";
+import getAllSubCategoriesApi from "@/services/dashboard/category/getAllSubCategoriesApi";
 
 /* ─── Helpers ───────────────────────────────────────────────────── */
 const EMPTY_FORM = {
     title: "",
-    productType: "",
+    subCategoryId: "",
     slug: "",
     metaTitle: "",
     metaDescription: "",
@@ -27,6 +28,12 @@ function slugify(value) {
         .replace(/[^a-z0-9\s-]/g, "")
         .replace(/\s+/g, "-")
         .replace(/-+/g, "-");
+}
+
+// Builds "title-subcategoryTitle" then slugifies the combined string
+function buildSlug(title, subCategoryTitle) {
+    const parts = [title, subCategoryTitle].filter((p) => p && p.trim());
+    return slugify(parts.join("-"));
 }
 
 /* ─── Confirm Dialog ────────────────────────────────────────────── */
@@ -88,16 +95,43 @@ function Textarea({ className = "", ...props }) {
     );
 }
 
+function Select({ className = "", children, ...props }) {
+    return (
+        <select
+            className={`w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/20 transition-all ${className}`}
+            {...props}
+        >
+            {children}
+        </select>
+    );
+}
+
 /* ─── Brand Form (Add / Edit) ───────────────────────────────────── */
-function BrandForm({ initial = EMPTY_FORM, onSubmit, isPending, onCancel, isEdit = false }) {
+function BrandForm({ initial = EMPTY_FORM, onSubmit, isPending, onCancel, isEdit = false, subcategories = [], subcategoriesLoading = false }) {
     const [form, setForm] = useState(initial);
     const [slugTouched, setSlugTouched] = useState(isEdit);
 
     const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
+    const getSubCategoryTitle = (subCategoryId) =>
+        subcategories.find((sc) => sc.subCategoryId === subCategoryId)?.title ?? "";
+
     const handleTitleChange = (e) => {
         const title = e.target.value;
-        setForm((f) => ({ ...f, title, slug: slugTouched ? f.slug : slugify(title) }));
+        setForm((f) => ({
+            ...f,
+            title,
+            slug: slugTouched ? f.slug : buildSlug(title, getSubCategoryTitle(f.subCategoryId)),
+        }));
+    };
+
+    const handleSubCategoryChange = (e) => {
+        const subCategoryId = e.target.value;
+        setForm((f) => ({
+            ...f,
+            subCategoryId,
+            slug: slugTouched ? f.slug : buildSlug(f.title, getSubCategoryTitle(subCategoryId)),
+        }));
     };
 
     const handleSlugChange = (e) => {
@@ -108,11 +142,11 @@ function BrandForm({ initial = EMPTY_FORM, onSubmit, isPending, onCancel, isEdit
     const handleSubmit = (e) => {
         e.preventDefault();
         if (!form.title.trim()) return Toast("Title is required", "error");
-        if (!form.productType.trim()) return Toast("Product type is required", "error");
+        if (!form.subCategoryId) return Toast("Sub category is required", "error");
         if (!form.slug.trim()) return Toast("Slug is required", "error");
         onSubmit({
             title: form.title.trim(),
-            productType: form.productType.trim(),
+            subCategoryId: form.subCategoryId,
             slug: form.slug.trim(),
             metaTitle: form.metaTitle.trim() || null,
             metaDescription: form.metaDescription.trim() || null,
@@ -121,18 +155,32 @@ function BrandForm({ initial = EMPTY_FORM, onSubmit, isPending, onCancel, isEdit
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Row 1: title + product type */}
+            {/* Row 1: title + subcategory */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Title" icon={Tag} iconColor="text-blue-400">
                     <Input value={form.title} onChange={handleTitleChange} placeholder="e.g., Samsung" required />
                 </Field>
-                <Field label="Product Type" icon={Package} iconColor="text-purple-400">
-                    <Input value={form.productType} onChange={set("productType")} placeholder="e.g., Electronics" required />
+                <Field label="Sub Category" icon={Package} iconColor="text-purple-400">
+                    <Select
+                        value={form.subCategoryId}
+                        onChange={handleSubCategoryChange}
+                        required
+                        disabled={subcategoriesLoading}
+                    >
+                        <option value="" disabled className="bg-gray-950">
+                            {subcategoriesLoading ? "Loading…" : "Select a sub category"}
+                        </option>
+                        {subcategories.map((sc) => (
+                            <option key={sc.subCategoryId} value={sc.subCategoryId} className="bg-gray-950">
+                                {sc.title}
+                            </option>
+                        ))}
+                    </Select>
                 </Field>
             </div>
 
             {/* Row 2: slug */}
-            <Field label="Slug" icon={Link2} iconColor="text-emerald-400" hint="Auto-generated from title, editable">
+            <Field label="Slug" icon={Link2} iconColor="text-emerald-400" hint="Auto-generated from title + sub category, editable">
                 <Input
                     value={form.slug}
                     onChange={handleSlugChange}
@@ -233,7 +281,9 @@ function BrandRow({ brand, onDelete, onEdit, isDeletePending }) {
                             </span>
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[0.68rem] text-gray-500 truncate">{brand.productType}</span>
+                            <span className="text-[0.68rem] text-gray-500 truncate">
+                                {brand.subCategory?.title ?? "No sub category"}
+                            </span>
                         </div>
                     </div>
 
@@ -273,6 +323,7 @@ function BrandRow({ brand, onDelete, onEdit, isDeletePending }) {
                 {expanded && (
                     <div className="px-3 pb-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2 border-t border-white/5 pt-2.5">
                         {[
+                            { label: "Sub Category", value: brand.subCategory?.title || "None" },
                             { label: "Meta Title", value: brand.metaTitle || "None" },
                             { label: "Meta Description", value: brand.metaDescription || "None" },
                             { label: "Created", value: brand.createdAt ? format(new Date(brand.createdAt), "MMM d, yyyy") : "—" },
@@ -291,10 +342,10 @@ function BrandRow({ brand, onDelete, onEdit, isDeletePending }) {
 }
 
 /* ─── Edit Panel (inline) ───────────────────────────────────────── */
-function EditPanel({ brand, onSave, onCancel, isPending }) {
+function EditPanel({ brand, onSave, onCancel, isPending, subcategories, subcategoriesLoading }) {
     const initial = {
         title: brand.title ?? "",
-        productType: brand.productType ?? "",
+        subCategoryId: brand.subCategoryId ?? "",
         slug: brand.slug ?? "",
         metaTitle: brand.metaTitle ?? "",
         metaDescription: brand.metaDescription ?? "",
@@ -317,6 +368,8 @@ function EditPanel({ brand, onSave, onCancel, isPending }) {
                 isPending={isPending}
                 onCancel={onCancel}
                 isEdit
+                subcategories={subcategories}
+                subcategoriesLoading={subcategoriesLoading}
             />
         </div>
     );
@@ -350,6 +403,14 @@ function BrandManager() {
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingBrand, setEditingBrand] = useState(null);
     const [search, setSearch] = useState("");
+
+    // Get all the subcategories
+    const { data: subcategoriesData, isLoading: subcategoriesLoading } = useQuery({
+        queryKey: ["subcategories"],
+        queryFn: () => getAllSubCategoriesApi(),
+    });
+
+    const subcategories = subcategoriesData?.data ?? [];
 
     /* query */
     const {
@@ -387,7 +448,7 @@ function BrandManager() {
     const brands = query
         ? allBrands.filter((b) =>
             b.title?.toLowerCase().includes(query) ||
-            b.productType?.toLowerCase().includes(query) ||
+            b.subCategory?.title?.toLowerCase().includes(query) ||
             b.slug?.toLowerCase().includes(query)
         )
         : allBrands;
@@ -434,7 +495,13 @@ function BrandManager() {
                             <Plus className="w-3.5 h-3.5 text-blue-400" />
                             New Brand
                         </p>
-                        <BrandForm onSubmit={addBrand} isPending={isAdding} onCancel={() => setShowAddForm(false)} />
+                        <BrandForm
+                            onSubmit={addBrand}
+                            isPending={isAdding}
+                            onCancel={() => setShowAddForm(false)}
+                            subcategories={subcategories}
+                            subcategoriesLoading={subcategoriesLoading}
+                        />
                     </div>
                 )}
 
@@ -463,7 +530,7 @@ function BrandManager() {
                     <Input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search brands by title, product type, or slug…"
+                        placeholder="Search brands by title, sub category, or slug…"
                         className="pl-9"
                     />
                     {search && (
@@ -493,6 +560,8 @@ function BrandManager() {
                                         isPending={isUpdating}
                                         onCancel={() => setEditingBrand(null)}
                                         onSave={(data) => updateBrand({ brandId: brand.brandId, data })}
+                                        subcategories={subcategories}
+                                        subcategoriesLoading={subcategoriesLoading}
                                     />
                                 ) : (
                                     <BrandRow

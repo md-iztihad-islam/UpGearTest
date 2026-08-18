@@ -6,7 +6,7 @@ model Banner {
     buttonText  String?   @map("ButtonText")
     imageURL    String    @map("ImageURL")
     status      String    @map("Status")
-    orderIndex  Int       @map("OrderIndex")
+    orderIndex  Int       @map("OrderIndex") @unique
     displayType String    @map("DisplayType") @default("DESKTOP") // {desktop, mobile, tablet}
     createdAt   DateTime  @default(now()) @map("CreatedAt")
     updatedAt   DateTime  @updatedAt @map("UpdatedAt")

@@ -14,9 +14,9 @@ const normalizeDecimal = (value) => {
 export const addExpenseController = async (req, res) => {
     try {
         const expenseData = { ...req.body };
-        // console.log("Add Expense Request Body:", req);
+        console.log("Add Expense Request Body:", req);
         const userId = req.userId;
-        // console.log("User ID from request:", userId);
+        console.log("User ID from request:", userId);
         expenseData.employeeId = userId;
 
         if (!expenseData.date) {

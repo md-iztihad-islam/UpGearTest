@@ -2,8 +2,9 @@ import NewArraivals from "./NewArraivals/NewArraivals";
 import HotDeals from "./hotDeals/HotDeals";
 import Discounted from "./discounted/Discounted";
 import CarouselComponent from "@/components/clientPart/carousel/Carousel";
-import EndSection from "@/components/clientPart/beforeFooter/EndSection";
 import Subcategories from "./components/Subcategories";
+import SubCategories from "./subCategories/SubCategories";
+import TrustFeatures from "@/components/clientPart/beforeFooter/TrustFeatures";
 
 function Home() {
     return (
@@ -19,6 +20,9 @@ function Home() {
 
             {/* Featured Sections */}
             <main className="">
+                <section id="sub-categories">
+                    <SubCategories />
+                </section>
                 <section id="new-arrivals">
                     <NewArraivals />
                 </section>
@@ -33,7 +37,7 @@ function Home() {
             </main>
 
             {/* Call to Action Section */}
-            <EndSection />
+            <TrustFeatures />
         </div>
     );
 }

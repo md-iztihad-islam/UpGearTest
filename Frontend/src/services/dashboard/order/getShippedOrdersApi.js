@@ -2,7 +2,7 @@ import axiosInstance from "@/helpers/dashboard/axiosInstance";
 
 export default async function getShippedOrdersApi(startDate, endDate) {
     try {
-        let url = `/order/get-all-shipped-orders`;
+        let url = `/order/get-all-shipped-orders?`;
         const now = new Date();
         
         if (startDate) {

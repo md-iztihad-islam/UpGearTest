@@ -4,6 +4,7 @@ import {
     updateBrandByIdRepository,
     getAllBrandsRepository,
     getBrandByIdRepository,
+    getBrandsBySubCategoryIdRepository,
 } from "./brandRepositories.js";
 
 export const addBrandService = async (brandData) => {
@@ -65,3 +66,15 @@ export const getBrandByIdService = async (brandId) => {
         };
     }
 };
+
+export const getBrandsBySubCategoryIdService = async (subCategoryId) => {
+    try {
+        const response = await getBrandsBySubCategoryIdRepository(subCategoryId);
+        return response;
+    } catch (error) {
+        console.log("Error in getBrandsBySubCategoryIdService:", error);
+        return {
+            message: "Error fetching brands by subCategoryId in service",
+        };
+    }
+}

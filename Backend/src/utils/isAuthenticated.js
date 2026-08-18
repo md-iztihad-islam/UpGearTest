@@ -3,8 +3,10 @@ import { JWT_SECRET } from '../config/serverConfig.js';
 
 const isAuthenticated = (req, res, next) => {
     try {
-        // console.log("Token from cookies:", req.cookies); // Log the token for debugging
-        const token = req.cookies.signinToken;
+        // console.log("Token from cookies:", req.headers.authorization?.split(" ")[1]); // Log the token for debugging
+        const token = req.cookies.signinToken || req.headers.authorization?.split(" ")[1];
+
+        console.log("Token from cookies:", token); // Log the token for debugging
 
         if(!token) {
             return res.status(401).json({
