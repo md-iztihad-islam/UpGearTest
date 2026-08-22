@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
 import {
     ShoppingCart, AlertCircle, X, Minus, Plus, Check,
@@ -17,6 +17,7 @@ import GroupProduct from "@/components/clientPart/productDetails/GroupProduct";
 import cartStore from "@/state/clientPart/cartStore";
 import ProductLoadingState from "@/components/loader/ProductLoader";
 import getProductBySlugApi from "@/services/clientPart/products/getProductBySlugApi";
+import VariationsModal from "./VariationsModal";
 
 function ProductDetails() {
     const { productSlug } = useParams();
@@ -32,11 +33,25 @@ function ProductDetails() {
 
     const product = productData?.data;
 
+    console.log("Product Data:", productData);
+
     // Stock comes directly from the product relation
     const stock = product?.stocks?.reduce((acc, s) => acc + ((s.remaining - s.reserved) || 0), 0) || 0;
 
     console.log("Product Details:", product);
     console.log("Stock data: ", stock)
+
+    // Combined list of this product + its group siblings, deduped by productId
+    const allVariants = useMemo(() => {
+        if (!product) return [];
+        const list = [product, ...(product.groupProducts || [])];
+        const seen = new Set();
+        return list.filter((p) => {
+            if (!p || seen.has(p.productId)) return false;
+            seen.add(p.productId);
+            return true;
+        });
+    }, [product]);
 
     const handleAddToCart = () => {
         if (!product) return;
@@ -54,6 +69,31 @@ function ProductDetails() {
             outsideDhakaCharge: Number(product.group?.outsideDhakaCharge),
         });
         window.showToast?.(`${product.title} added to cart`, { type: "success" });
+    };
+
+    const handleAddVariationsToCart = (selected) => {
+        if (!selected || selected.length === 0) return;
+
+        selected.forEach(({ product: variant, quantity: qty }) => {
+            addToCart({
+                id: variant.productId,
+                productId: variant.productId,
+                title: variant.title,
+                subTitle: variant.subTitle,
+                image: variant.images?.[0]?.imageURL || variant.bannerImageURL,
+                mainPrice: Number(variant.mainPrice),
+                discountAmount: Number(variant.discount) || 0,
+                price: Number(variant.price),
+                quantity: qty,
+                insideDhakaCharge: Number(product?.group?.insideDhakaCharge) || 0,
+                outsideDhakaCharge: Number(product?.group?.outsideDhakaCharge) || 0,
+            });
+        });
+
+        window.showToast?.(
+            `${selected.length} item${selected.length > 1 ? "s" : ""} added to cart`,
+            { type: "success" }
+        );
     };
 
     if (isLoading) return <ProductLoadingState />;
@@ -286,7 +326,7 @@ function ProductDetails() {
                     </div>
                 </div>
 
-                {/* Group Products */}
+                {/* Group Products (thumbnail links to other variants) */}
                 {groupProducts.length > 0 && (
                     <div className="mb-12 sm:mb-16">
                         <div className="flex items-center gap-3 mb-6">
@@ -294,6 +334,16 @@ function ProductDetails() {
                             <h2 className="text-xl sm:text-2xl font-bold">Other Variants</h2>
                         </div>
                         <GroupProduct groupProducts={groupProducts} />
+                    </div>
+                )}
+
+                {/* Variations — always visible, pick quantities across all variants */}
+                {allVariants.length > 0 && (
+                    <div className="mb-12 sm:mb-16">
+                        <VariationsModal
+                            variants={allVariants}
+                            onAddToCart={handleAddVariationsToCart}
+                        />
                     </div>
                 )}
 

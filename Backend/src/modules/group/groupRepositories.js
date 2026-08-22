@@ -35,7 +35,6 @@ export const addGroupRepository = async (data) => {
                 keyFeatures: {
                     create: keyFeatures.map((feature, index) => ({
                         feature,
-                        orderIndex: index,
                     })),
                 },
 
@@ -43,7 +42,6 @@ export const addGroupRepository = async (data) => {
                 tags: {
                     create: tags.map((tag, index) => ({
                         tag,
-                        orderIndex: index,
                     })),
                 },
 
@@ -52,7 +50,6 @@ export const addGroupRepository = async (data) => {
                     create: specifications.map((spec, index) => ({
                         specificationId: spec.specificationId,
                         value: spec.value,
-                        orderIndex: index,
                     })),
                 },
 
@@ -60,7 +57,6 @@ export const addGroupRepository = async (data) => {
                 descriptionImages: {
                     create: descImageURLs.map((imageURL, index) => ({
                         imageURL,
-                        orderIndex: index,
                     })),
                 },
             },
@@ -142,7 +138,6 @@ export const updateGroupByIdRepository = async (groupId, updateData) => {
                         data: keyFeatures.map((feature, index) => ({
                             groupId,
                             feature,
-                            orderIndex: index,
                         })),
                     })
                 );
@@ -157,7 +152,6 @@ export const updateGroupByIdRepository = async (groupId, updateData) => {
                         data: tags.map((tag, index) => ({
                             groupId,
                             tag,
-                            orderIndex: index,
                         })),
                     })
                 );
@@ -192,7 +186,6 @@ export const updateGroupByIdRepository = async (groupId, updateData) => {
                 operations.push(
                     prisma.descriptionImage.update({
                         where: { descriptionImageId: img.descriptionImageId },
-                        data: { orderIndex: img.orderIndex },
                     })
                 );
             }
@@ -204,7 +197,6 @@ export const updateGroupByIdRepository = async (groupId, updateData) => {
                     data: newDescriptionImages.map((img) => ({
                         groupId,
                         imageURL: img.imageURL,
-                        orderIndex: img.orderIndex,
                     })),
                 })
             );
@@ -322,9 +314,8 @@ export const getGroupByIdRepository = async (groupId) => {
                     select: {
                         descriptionImageId: true,
                         imageURL: true,
-                        orderIndex: true,
                     },
-                    orderBy: { orderIndex: "asc" },
+                    orderBy: { createdAt: "asc" },
                 },
             },
         });

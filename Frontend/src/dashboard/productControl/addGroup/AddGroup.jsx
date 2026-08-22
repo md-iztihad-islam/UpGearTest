@@ -132,7 +132,7 @@ function AddGroup() {
         if (descImg03) formData.append("descImages", descImg03);
 
         formData.append("description", description);
-        formData.append("productType", productType);
+        // formData.append("productType", productType);
         formData.append("warrantyId", warrantyId);
 
         // Specifications — specificationId as key

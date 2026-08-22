@@ -68,7 +68,6 @@ model ProductImage {
     productId      String   @map("ProductId")
     title          String?  @map("Title")
     imageURL       String   @map("ImageURL")
-    orderIndex     Int      @map("OrderIndex")
     createdAt      DateTime @default(now()) @map("CreatedAt")
     updatedAt      DateTime @updatedAt @map("UpdatedAt")
 
@@ -81,7 +80,6 @@ model DescriptionImage {
     descriptionImageId String   @id @default(uuid()) @map("DescriptionImageId")
     groupId            String   @map("GroupId")
     imageURL           String   @map("ImageURL")
-    orderIndex         Int      @map("OrderIndex")
     createdAt          DateTime @default(now()) @map("CreatedAt")
     updatedAt          DateTime @updatedAt @map("UpdatedAt")
 

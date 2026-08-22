@@ -37,7 +37,6 @@ export const addProductRepository = async (productData, productImageURLs = [], p
 						images: {
 							create: productImageURLs.map((imageURL, index) => ({
 								imageURL,
-								orderIndex: index,
 							})),
 						},
 						...(productFilters.length > 0
@@ -54,7 +53,7 @@ export const addProductRepository = async (productData, productImageURLs = [], p
 					include: {
 						group: true,
 						images: {
-							orderBy: { orderIndex: "asc" },
+							orderBy: { createdAt: "asc" },
 						},
 						productFilters: {
 							include: {
@@ -146,7 +145,6 @@ export const updateProductByIdRepository = async (productId, updateData) => {
                 operations.push(
                     prisma.productImage.update({
                         where: { productImageId: img.productImageId },
-                        data: { orderIndex: img.orderIndex },
                     })
                 );
             }
@@ -158,7 +156,6 @@ export const updateProductByIdRepository = async (productId, updateData) => {
                     data: newProductImages.map((img) => ({
                         productId,
                         imageURL: img.imageURL,
-                        orderIndex: img.orderIndex,
                     })),
                 })
             );
@@ -211,7 +208,7 @@ export const getAllProductsRepository = async () => {
 						brand: true,
 						warranty: true,
 						descriptionImages: {
-							orderBy: { orderIndex: "asc" },
+							orderBy: { createdAt: "asc" },
 						},
 						keyFeatures: {
 							orderBy: { createdAt: "asc" },
@@ -237,7 +234,7 @@ export const getAllProductsRepository = async () => {
 					select: { code: true },
 				},
 				images: {
-					orderBy: { orderIndex: "asc" },
+					orderBy: { createdAt: "asc" },
 				},
 				stocks: {
 					where: { status: "available" },
@@ -273,7 +270,7 @@ export const getProductByIdRepository = async (productId) => {
 						brand: true,
 						warranty: true,
 						descriptionImages: {
-							orderBy: { orderIndex: "asc" },
+							orderBy: { createdAt: "asc" },
 						},
 						keyFeatures: {
 							orderBy: { createdAt: "asc" },
@@ -299,7 +296,7 @@ export const getProductByIdRepository = async (productId) => {
 					select: { code: true },
 				},
 				images: {
-					orderBy: { orderIndex: "asc" },
+					orderBy: { createdAt: "asc" },
 				},
 				stocks: {
 					where: { status: "available" },
@@ -337,7 +334,7 @@ export const getProductByGroupIdRepository = async (groupId) => {
 						brand: true,
 						warranty: true,
 						descriptionImages: {
-							orderBy: { orderIndex: "asc" },
+							orderBy: { createdAt: "asc" },
 						},
 						keyFeatures: {
 							orderBy: { createdAt: "asc" },
@@ -363,7 +360,7 @@ export const getProductByGroupIdRepository = async (groupId) => {
 					select: { code: true },
 				},
 				images: {
-					orderBy: { orderIndex: "asc" },
+					orderBy: { createdAt: "asc" },
 				},
 				stocks: {
 					where: { status: "available" },
@@ -399,7 +396,7 @@ export const getProductBySlugRepository = async (slug) => {
 						brand: true,
 						warranty: true,
 						descriptionImages: {
-							orderBy: { orderIndex: "asc" },
+							orderBy: { createdAt: "asc" },
 						},
 						keyFeatures: {
 							orderBy: { createdAt: "asc" },
@@ -425,7 +422,7 @@ export const getProductBySlugRepository = async (slug) => {
 					select: { code: true },
 				},
 				images: {
-					orderBy: { orderIndex: "asc" },
+					orderBy: { createdAt: "asc" },
 				},
 				stocks: {
 					where: { status: "available" },
@@ -476,7 +473,7 @@ export const searchProductsRepository = async (searchTerm, page = 1, limit = 10,
 				select: {
 					groupId: true, description: true, insideDhakaCharge: true, outsideDhakaCharge: true,
 					category: true, subCategory: true, brand: true, warranty: true,
-					descriptionImages: { orderBy: { orderIndex: "asc" } },
+					descriptionImages: { orderBy: { createdAt: "asc" } },
 					keyFeatures: { orderBy: { createdAt: "asc" } },
 					tags: { orderBy: { createdAt: "asc" } },
 					productSpecifications: {
@@ -486,7 +483,7 @@ export const searchProductsRepository = async (searchTerm, page = 1, limit = 10,
 				},
 			},
 			coupon: { select: { code: true } },
-			images: { orderBy: { orderIndex: "asc" } },
+			images: { orderBy: { createdAt: "asc" } },
 			stocks: {
 				where: { status: "available" },
 				select: { stockId: true, remaining: true, reserved: true, status: true },
@@ -524,7 +521,7 @@ export const getNewArraivalsRepository = async (page=1, limit=10, sortBy) => {
 						brand: true,
 						warranty: true,
 						descriptionImages: {
-							orderBy: { orderIndex: "asc" },
+							orderBy: { createdAt: "asc"}, 
 						},
 						keyFeatures: {
 							orderBy: { createdAt: "asc" },
@@ -550,7 +547,7 @@ export const getNewArraivalsRepository = async (page=1, limit=10, sortBy) => {
 					select: { code: true },
 				},
 				images: {
-					orderBy: { orderIndex: "asc" },
+					orderBy: { createdAt: "asc"},
 				},
 				stocks: {
 					where: { status: "available" },
@@ -597,7 +594,7 @@ export const getHotDealsRepository = async (page=1, limit=10, sortBy) => {
 						brand: true,
 						warranty: true,
 						descriptionImages: {
-							orderBy: { orderIndex: "asc" },
+							orderBy: { createdAt: "asc" },
 						},
 						keyFeatures: {
 							orderBy: { createdAt: "asc" },
@@ -623,7 +620,7 @@ export const getHotDealsRepository = async (page=1, limit=10, sortBy) => {
 					select: { code: true },
 				},
 				images: {
-					orderBy: { orderIndex: "asc" },
+					orderBy: { createdAt: "asc" },
 				},
 				stocks: {
 					where: { status: "available" },
@@ -670,7 +667,7 @@ export const getDiscountedRepository = async (page=1, limit=10, sortBy) => {
 						brand: true,
 						warranty: true,
 						descriptionImages: {
-							orderBy: { orderIndex: "asc" },
+							orderBy: { createdAt: "asc" },
 						},
 						keyFeatures: {
 							orderBy: { createdAt: "asc" },
@@ -696,7 +693,7 @@ export const getDiscountedRepository = async (page=1, limit=10, sortBy) => {
 					select: { code: true },
 				},
 				images: {
-					orderBy: { orderIndex: "asc" },
+					orderBy: { createdAt: "asc" },
 				},
 				stocks: {
 					where: { status: "available" },
