@@ -86,22 +86,7 @@ function TrustFeatures() {
                     ))}
                 </motion.div>
 
-                {/* Learn More Link */}
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    whileInView={{ opacity: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.6, delay: 0.4 }}
-                    className="flex justify-center"
-                >
-                    <a 
-                        href="#learn-more" 
-                        className="inline-flex items-center gap-1 text-sm font-medium text-white hover:text-gray-300 transition-colors group"
-                    >
-                        Learn more 
-                        <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                    </a>
-                </motion.div>
+                
 
             </div>
         </section>

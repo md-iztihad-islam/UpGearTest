@@ -1,186 +1,44 @@
-import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Loader2 } from "lucide-react";
+import ProductCard from "@/components/clientPart/productCard/ProductCard";
 import getAllNewArraivalsApi from "@/services/clientPart/newArraivals/getAllNewArraivalsApi";
-import { motion } from "framer-motion";
-
-// --- Custom Tailwind-like CSS for gradient background ---
-// Define this in your global CSS or as an inline style.
-// This replicates the subtle depth from the design image.
-const cardBackgroundGradient = {
-  background: 'linear-gradient(180deg, #1A1A1D 0%, #111114 100%)',
-};
-
-// --- ProductCard Component ---
-const ProductCard = ({ product }) => {
-  // Data extraction logic remains the same
-  const title = product?.title || "Unknown Product";
-  const imageURL = product?.images?.[0]?.imageURL || "https://via.placeholder.com/400";
-  
-  const currentPrice = Number(product?.price || 0);
-  const originalPrice = Number(product?.mainPrice || 0);
-  const isDiscounted = product?.isDiscounted && originalPrice > currentPrice;
-  const discountPercentage = isDiscounted 
-    ? Math.round(((originalPrice - currentPrice) / originalPrice) * 100) 
-    : 0;
-
-  const category = product?.group?.category?.title;
-  const subCategory = product?.group?.subCategory?.title;
-  const tags = product?.group?.tags?.map((t) => t.tag) || [];
-  
-  const allTags = [...new Set([category, subCategory, ...tags])].filter(Boolean).slice(0, 4);
-
-  return (
-    <div 
-      style={cardBackgroundGradient}
-      className="border-2 border-[#333333] rounded-xl p-4 flex flex-col gap-4 hover:border-gray-500 transition-colors cursor-pointer 
-        /* Static Dimensions: Different only for screen size */
-        w-[340px] h-[520px] 
-        sm:w-[320px] sm:h-[500px]"
-    >
-      {/* Product Image */}
-      <div className="w-full aspect-square bg-[#0F0F11] rounded-lg overflow-hidden flex items-center justify-center p-2">
-        <img 
-          src={imageURL} 
-          alt={title} 
-          className="w-full h-full object-cover rounded-md"
-        />
-      </div>
-
-      {/* Product Details */}
-      <div className="flex flex-col flex-1 gap-3">
-        <h3 className="text-white font-medium text-base sm:text-lg line-clamp-2 leading-tight">
-          {title}
-        </h3>
-
-        {/* Tags */}
-        <div className="flex flex-wrap gap-2">
-          {allTags.map((tag, index) => (
-            <span 
-            key={index} 
-            className="px-3 py-1 bg-[#2C2C2E] text-[#A1A1AA] text-[10px] sm:text-xs rounded-full capitalize"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
-
-        {/* Price Section */}
-        <div className="flex items-center gap-2 mt-auto pt-2">
-          <span className="text-white font-bold text-xl">
-            {currentPrice.toLocaleString()} ৳
-          </span>
-          {isDiscounted && (
-            <>
-              <span className="text-red-500 text-sm line-through">
-                {originalPrice.toLocaleString()} ৳
-              </span>
-              <span className="text-green-500 text-sm font-bold ml-1">
-                Save {discountPercentage}%
-              </span>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
 
 
-// --- NewArrivals Component ---
-function NewArrivals() {
-    const { data: newArrivalsData, isLoading, isError } = useQuery({
-        queryKey: ['newArrivalsData'],
-        queryFn: () => getAllNewArraivalsApi(),
-        cacheTime: 5 * 60 * 1000,
-        staleTime: 2 * 60 * 1000,
+function NewArraivals() {
+    const { data, isLoading, isError } = useQuery({
+        queryKey: ["newArraivals"],
+        queryFn: getAllNewArraivalsApi,
+        staleTime: 5 * 60 * 1000,
     });
 
-    const products = newArrivalsData?.data?.products || newArrivalsData?.data || [];
-    
-    // Grid settings are optimized for fixed-width cards
-    const displayedProducts = products.slice(0, 6); 
+    const products = data?.data.products || [];
 
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: { staggerChildren: 0.1 }
-        }
-    };
-
-    const itemVariants = {
-        hidden: { opacity: 0, y: 20 },
-        visible: {
-            opacity: 1,
-            y: 0,
-            transition: { duration: 0.5 }
-        }
-    };
+    if (isLoading || isError || products.length === 0) return null;
 
     return (
-        <section className="relative py-16 lg:py-24 bg-[#09090B] overflow-hidden min-h-screen">
-            <div className="absolute top-1/4 -right-64 w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
-            
-            <div className="container relative mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
-                
-                <motion.div 
-                    initial={{ opacity: 0, y: -20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.6 }}
-                    className="text-center mb-12 sm:mb-16"
-                >
-                    <h2 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-white tracking-tight mb-3">
+        <section className="relative overflow-hidden bg-black py-12 sm:py-16">
+            {/* Ambient glow */}
+            <div className="pointer-events-none absolute -right-32 top-0 h-full w-96 bg-blue-600/20 blur-[100px]" />
+
+            <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                {/* Header */}
+                <div className="text-center mb-8 sm:mb-12">
+                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2">
                         New On The Shop!
                     </h2>
-                    <p className="text-[#A1A1AA] text-sm sm:text-base md:text-lg">
+                    <p className="text-gray-400 text-sm sm:text-base">
                         We've got some shiny stuff for your desk
                     </p>
-                </motion.div>
+                </div>
 
-                {/* Loading/Error/Empty states unchanged */}
-                {isLoading && (
-                    <div className="flex justify-center items-center py-20">
-                        <Loader2 className="w-10 h-10 text-white animate-spin" />
-                    </div>
-                )}
-
-                {isError && !isLoading && (
-                    <div className="text-center py-16 px-4">
-                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 mb-4">
-                            <AlertCircle className="h-8 w-8 text-red-400" />
-                        </div>
-                        <h3 className="text-xl font-semibold text-white mb-2">Failed to load</h3>
-                        <p className="text-gray-400">Please check your connection and try again.</p>
-                    </div>
-                )}
-
-                {!isLoading && !isError && products.length === 0 && (
-                    <div className="text-center py-16 text-gray-400">
-                        No new arrivals found. Check back later!
-                    </div>
-                )}
-
-                {/* Products Grid with centering for fixed-size cards */}
-                {!isLoading && !isError && products.length > 0 && (
-                    <motion.div 
-                        variants={containerVariants}
-                        initial="hidden"
-                        whileInView="visible"
-                        viewport={{ once: true }}
-                        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 place-items-center"
-                    >
-                        {displayedProducts.map((product) => (
-                            <motion.div key={product.productId || product._id} variants={itemVariants}>
-                                <ProductCard product={product} />
-                            </motion.div>
-                        ))}
-                    </motion.div>
-                )}
+                {/* Grid — 2 cols on phone; fluid, medium-sized columns beyond that */}
+                <div className="grid grid-cols-2 gap-4 sm:gap-6 sm:grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
+                    {products.map((product) => (
+                        <ProductCard key={product.productId} product={product} />
+                    ))}
+                </div>
             </div>
         </section>
     );
 }
 
-export default NewArrivals;
+export default NewArraivals;

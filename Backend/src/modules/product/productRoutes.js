@@ -8,6 +8,7 @@ import {
 	getNewArrivalsController,
 	getProductByIdController,
 	getProductBySlugController,
+	getProductsBySubCategoryController,
 	searchProductsController,
 	updateProductByIdController,
 } from "./productControllers.js";
@@ -39,5 +40,7 @@ router.get("/search-products", searchProductsController);
 router.get("/get-new-arrivals", getNewArrivalsController);
 router.get("/get-discounted-products", getDiscountedController);
 router.get("/get-hot-deals", getHotDealsController);
+router.get("/get-products-by-subcategory/:subcategorySlug", getProductsBySubCategoryController);
+router.get("/get-products-by-subcategory/:subcategorySlug/brand/:brandSlug", getProductsBySubCategoryController);
 
 export default router;

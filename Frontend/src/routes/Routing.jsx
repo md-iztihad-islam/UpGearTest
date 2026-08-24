@@ -26,6 +26,7 @@ const Checkout = lazy(() => import("@/clientPart/checkout/CheckOut"));
 const OrderConfirmation = lazy(() => import("@/clientPart/checkout/orderConfirmPage"));
 const AllProducts = lazy(() => import("@/clientPart/productList/allProducts/AllProducts"));
 const ProductsBySubcategory = lazy(() => import("@/clientPart/productList/subCategory/ProductsBySubcategory"));
+const ProductsBySubcategoryBrand = lazy(() => import("@/clientPart/productList/subCategory/ProductsBySubCategoryAndBrand"));
 const ProductsByNewArraivals = lazy(() => import("@/clientPart/productList/newArraivals/ProductsByNewArraivals"));
 const ProductsByHotDeals = lazy(() => import("@/clientPart/productList/hotDeals/ProductsByHotDeals"));
 const ProductsByDiscounted = lazy(() => import("@/clientPart/productList/discounted/ProductsByDiscounted"));
@@ -161,7 +162,8 @@ function Routing() {
                 <Route path="checkout" element={<Suspense fallback={<UpGearLoader />}><Checkout /></Suspense>} />
                 <Route path="order-confirmation/:orderId" element={<Suspense fallback={<UpGearLoader />}><OrderConfirmation /></Suspense>} />
                 <Route path="all-products" element={<Suspense fallback={<UpGearLoader />}><AllProducts /></Suspense>} />
-                <Route path="products/sub-category/:subcategorySlug" element={<Suspense fallback={<UpGearLoader />}><ProductsBySubcategory /></Suspense>} />
+                <Route path="products/sub-category/:subCategorySlug" element={<Suspense fallback={<UpGearLoader />}><ProductsBySubcategory /></Suspense>} />
+                <Route path="products/sub-category/:subcategorySlug/brand/:brandSlug" element={<Suspense fallback={<UpGearLoader />}><ProductsBySubcategoryBrand /></Suspense>} />
                 <Route path="new-arraivals" element={<Suspense fallback={<UpGearLoader />}><ProductsByNewArraivals /></Suspense>} />
                 <Route path="hot-deals" element={<Suspense fallback={<UpGearLoader />}><ProductsByHotDeals /></Suspense>} />
                 <Route path="discounted" element={<Suspense fallback={<UpGearLoader />}><ProductsByDiscounted /></Suspense>} />

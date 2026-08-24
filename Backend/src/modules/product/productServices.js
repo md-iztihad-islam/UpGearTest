@@ -1,3 +1,4 @@
+import { prisma } from "../../utils/prisma.js";
 import {
 	addProductRepository,
 	deleteProductByIdRepository,
@@ -7,6 +8,7 @@ import {
 	getNewArraivalsRepository,
 	getProductByIdRepository,
 	getProductBySlugRepository,
+	getProductsBySubCategoryRepository,
 	searchProductsRepository,
 	updateProductByIdRepository,
 } from "./productRepositories.js";
@@ -131,3 +133,43 @@ export const getDiscountedService = async (page=1, limit=10, sortBy) => {
 		};
 	}
 }
+
+export const getProductsBySubCategoryService = async (subCategorySlug, page, limit, sortBy, filter) => {
+	try {
+		if (!subCategorySlug) {
+			return { message: "subCategorySlug is required" };
+		}
+
+		// Route only gives us the slug, but the repository (and Group model)
+		// works off subCategoryId, so resolve it first.
+		const subCategory = await prisma.subCategory.findUnique({
+			where: { slug: subCategorySlug },
+			select: { subCategoryId: true, title: true, slug: true },
+		});
+
+		if (!subCategory) {
+			return { message: "Sub-category not found" };
+		}
+
+		const result = await getProductsBySubCategoryRepository(
+			subCategory.subCategoryId,
+			page,
+			limit,
+			sortBy,
+			filter
+		);
+
+		if (result?.message) {
+			// repository already logged/handled the error, just bubble it up
+			return result;
+		}
+
+		return {
+			subCategory,
+			...result,
+		};
+	} catch (error) {
+		console.log("Error in getProductsBySubCategoryService:", error);
+		return { message: "Error fetching products by sub-category in service" };
+	}
+};

@@ -1,192 +1,107 @@
-import { ShoppingBag, ShoppingCart, Heart } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { ShoppingCart } from "lucide-react";
+import { Link } from "react-router-dom";
+import cartStore from "@/state/clientPart/cartStore";
 
-/**
- * Color tokens pulled directly from the Figma "Selection colors" panels.
- * Each variant = { accentDark (top-of-card glow / badge tint), border: [from, to] }.
- * Tokens shared across every variant (white text, save-green, strike-red)
- * live in COMMON below instead of being repeated per variant.
- */
-const VARIANTS = {
-    discounted: {
-        // green panel
-        accentDark: "#07471A",
-        borderFrom: "#124E24",
-        borderTo: "#1A8B3C",
-    },
-    newArrival: {
-        // blue panel
-        accentDark: "#101C48",
-        borderFrom: "#2218A8",
-        borderTo: "#224D9D",
-    },
-    hotDeal: {
-        // red panel
-        accentDark: "#520608",
-        borderFrom: "#6D1819",
-        borderTo: "#6E0A0B",
-    },
-    normal: {
-        // black/gray panel — no colored border gradient, just a flat gray ring
-        accentDark: "#373737",
-        borderFrom: "#626262",
-        borderTo: "#626262",
-    },
-};
+// product: expects the shape returned by your product list/group endpoints
+// { productId, slug, title, subTitle, images, mainPrice, discount, price, tags, group }
+function ProductCard({ product }) {
+    const { addToCart } = cartStore();
 
-const COMMON = {
-    textPrimary: "#FFFFFF",
-    textSecondary: "#F5EFF7",
-    badgeBg: "#322F35",
-    save: "#66FF7D",
-    strike: "#FF7B7B",
-};
+    if (!product) return null;
 
-/**
- * Picks a single visual variant when a product has multiple flags set.
- * Priority: hot deal > new arrival > discounted > normal.
- * Adjust this order if a different precedence makes more sense for the store.
- */
-function resolveVariant(product) {
-    if (product.isHotDeal) return "hotDeal";
-    if (product.isNewArrival) return "newArrival";
-    if (product.isDiscounted) return "discounted";
-    return "normal";
-}
-
-function formatTaka(value) {
-    const num = Number(value);
-    if (Number.isNaN(num)) return value;
-    return num.toLocaleString("en-US");
-}
-
-/**
- * ProductCard
- *
- * Props:
- * - product: shape as returned by the products list API (title, subTitle,
- *   bannerImageURL, mainPrice, discount, price, isNewArrival, isHotDeal,
- *   isDiscounted, slug, group.tags, stocks, ...)
- * - onAddToCart?(product): called when the cart icon is clicked. If omitted,
- *   the button still renders but is a no-op — wire this to your actual
- *   cart store's add-item action.
- * - onToggleWishlist?(product): same idea for the heart icon. No wishlist
- *   store exists yet in this codebase, so this is left as a callback.
- * - onBuyNow?(product): called when "Buy Now" is clicked. Defaults to
- *   navigating to the product detail page via its slug.
- */
-function ProductCard({ product, onAddToCart, onToggleWishlist, onBuyNow }) {
-    const navigate = useNavigate();
-    const variant = VARIANTS[resolveVariant(product)];
-
-    const tags = (product.group?.tags ?? []).slice(0, 4);
+    const mainPrice = Number(product.mainPrice) || 0;
     const discount = Number(product.discount) || 0;
-    const hasSavings = discount > 0;
-    const totalStock = (product.stocks ?? []).reduce((sum, s) => sum + (s.remaining || 0), 0);
-    const isOutOfStock = (product.stocks?.length ?? 0) > 0 && totalStock <= 0;
+    const price = Number(product.price) || 0;
+    const hasDiscount = discount > 0 && mainPrice > price;
+    const discountPercent = hasDiscount ? Math.round((discount / mainPrice) * 100) : 0;
 
-    const handleBuyNow = () => {
-        if (onBuyNow) return onBuyNow(product);
-        navigate(`/products/${product.slug}`);
+    const image = product.images?.[0]?.imageURL || product.bannerImageURL;
+    const tags = product.tags || product.group?.tags?.map((t) => t.tag) || [];
+
+    const handleAddToCart = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        addToCart({
+            id: product.productId,
+            productId: product.productId,
+            title: product.title,
+            subTitle: product.subTitle,
+            image,
+            mainPrice,
+            discountAmount: discount,
+            price,
+            quantity: 1,
+            insideDhakaCharge: Number(product.group?.insideDhakaCharge) || 0,
+            outsideDhakaCharge: Number(product.group?.outsideDhakaCharge) || 0,
+        });
+        window.showToast?.(`${product.title} added to cart`, { type: "success" });
     };
 
     return (
-        <div
-            className="rounded-2xl p-[1.5px] shrink-0 w-full max-w-[300px]"
-            style={{ background: `linear-gradient(160deg, ${variant.borderFrom}, ${variant.borderTo})` }}
+        <Link
+            to={`/products/${product.slug}`}
+            className="group flex flex-col w-full mx-auto max-w-[160px] sm:max-w-[300px] max-h-[300px] sm:max-h-[400px] bg-black border-2 border-[#333333] rounded-none rounded-tr-2xl rounded-bl-2xl overflow-hidden hover:border-[#4a4a4a] transition-colors duration-200"
         >
-            <div className="rounded-2xl overflow-hidden bg-[#0B0B0B] h-full flex flex-col">
-                {/* Image area */}
-                <div
-                    className="relative aspect-square"
-                    style={{
-                        background: `radial-gradient(120% 90% at 50% 0%, ${variant.accentDark}80, transparent 65%), #0B0B0B`,
-                    }}
-                >
+            {/* Image — padded on all sides so the product breathes inside the frame */}
+            <div className="p-2 sm:p-4 shrink-0">
+                <div className="w-full h-24 sm:h-40 rounded-none rounded-tr-lg rounded-bl-lg overflow-hidden bg-[#0a0a0a]">
                     <img
-                        src={product.bannerImageURL}
+                        src={image}
                         alt={product.title}
-                        className="w-full h-full object-contain p-4"
-                        loading="lazy"
+                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                     />
-
-                    {isOutOfStock && (
-                        <div className="absolute top-2 right-2 rounded-md bg-black/70 px-2 py-1 text-[10px] font-semibold text-white/80 uppercase tracking-wide">
-                            Out of stock
-                        </div>
-                    )}
-
-                    {/* Buy Now / cart / wishlist bar */}
-                    <div className="absolute inset-x-0 bottom-0 flex items-center gap-2.5 bg-black/55 backdrop-blur-sm px-3 py-2.5">
-                        <button
-                            onClick={handleBuyNow}
-                            className="flex items-center gap-1.5 text-sm font-semibold text-white hover:opacity-80 transition-opacity"
-                        >
-                            <ShoppingBag className="h-4 w-4" />
-                            Buy Now
-                        </button>
-                        <span className="h-4 w-px bg-white/25" />
-                        <button
-                            onClick={() => onAddToCart?.(product)}
-                            aria-label="Add to cart"
-                            className="text-white hover:opacity-80 transition-opacity"
-                        >
-                            <ShoppingCart className="h-4 w-4" />
-                        </button>
-                        <button
-                            onClick={() => onToggleWishlist?.(product)}
-                            aria-label="Add to wishlist"
-                            className="text-white hover:opacity-80 transition-opacity"
-                        >
-                            <Heart className="h-4 w-4" />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Body */}
-                <div className="flex-1 flex flex-col gap-2.5 p-4">
-                    <h3
-                        className="text-base font-bold leading-snug line-clamp-2"
-                        style={{ color: COMMON.textPrimary }}
-                    >
-                        {product.title}
-                    </h3>
-
-                    {tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                            {tags.map((t) => (
-                                <span
-                                    key={t.tagId}
-                                    className="px-2.5 py-1 rounded-full text-[11px] font-medium"
-                                    style={{ backgroundColor: COMMON.badgeBg, color: COMMON.textSecondary }}
-                                >
-                                    {t.tag}
-                                </span>
-                            ))}
-                        </div>
-                    )}
-
-                    <div className="flex items-baseline gap-2 mt-auto pt-1">
-                        <span className="text-lg font-bold" style={{ color: COMMON.textPrimary }}>
-                            {formatTaka(product.price)} ৳
-                        </span>
-                        {hasSavings && (
-                            <>
-                                <span
-                                    className="text-sm line-through"
-                                    style={{ color: COMMON.strike }}
-                                >
-                                    {formatTaka(product.mainPrice)}৳
-                                </span>
-                                <span className="text-sm font-semibold" style={{ color: COMMON.save }}>
-                                    Save {discount}%
-                                </span>
-                            </>
-                        )}
-                    </div>
                 </div>
             </div>
-        </div>
+
+            {/* Body */}
+            <div className="flex-1 min-h-0 p-2.5 sm:p-4 pt-0 space-y-1.5 sm:space-y-3">
+                {/* Title */}
+                <h3 className="text-white text-xs sm:text-base font-medium leading-snug line-clamp-2 min-h-[2rem] sm:min-h-[2.75rem]">
+                    {product.title}
+                    {product.subTitle ? ` ${product.subTitle}` : ""}
+                </h3>
+
+                {/* Tags — hidden on phone */}
+                {tags.length > 0 && (
+                    <div className="hidden sm:flex flex-wrap gap-1.5">
+                        {tags.slice(0, 4).map((tag, i) => (
+                            <span
+                                key={i}
+                                className="px-2.5 py-1 bg-gray-800 text-gray-300 text-xs rounded-full"
+                            >
+                                {tag}
+                            </span>
+                        ))}
+                    </div>
+                )}
+
+                {/* Price */}
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                    <span className="text-white text-sm sm:text-xl font-bold">
+                        ৳{price.toLocaleString()}
+                    </span>
+                    {hasDiscount && (
+                        <>
+                            <span className="text-gray-500 text-[11px] sm:text-sm line-through">
+                                ৳{mainPrice.toLocaleString()}
+                            </span>
+                            <span className="text-green-400 text-[11px] sm:text-sm font-semibold">
+                                Save {discountPercent}%
+                            </span>
+                        </>
+                    )}
+                </div>
+
+                {/* Add to Cart */}
+                <button
+                    onClick={handleAddToCart}
+                    className="w-full flex items-center justify-center gap-1.5 sm:gap-2 bg-[#1a1a1a] hover:bg-[#242424] border border-[#333333] text-white text-xs sm:text-base font-medium rounded-xl py-2 sm:py-3 transition-colors duration-200"
+                >
+                    <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    Add to Cart
+                </button>
+            </div>
+        </Link>
     );
 }
 

@@ -7,6 +7,7 @@ import {
 	getNewArraivalsService,
 	getProductByIdService,
 	getProductbySlugService,
+	getProductsBySubCategoryService,
 	searchProductsService,
 	updateProductByIdService,
 } from "./productServices.js";
@@ -548,3 +549,54 @@ export const getDiscountedController = async (req, res) => {
 		});
 	}
 }
+
+export const getProductsBySubCategoryController = async (req, res) => {
+	try {
+		console.log("Received request for products by sub-category:", req.params, req.query);
+		const { subcategorySlug } = req.params;
+		const { page = 1, limit = 10, sortBy, filter } = req.query;
+
+		console.log("Data: ", subcategorySlug, page, limit, sortBy, filter);
+
+		// filter arrives as a JSON string over query params, e.g.
+		// ?filter=[{"filterId":"...","filterItemId":"..."}]
+		let parsedFilter = [];
+		if (filter) {
+			try {
+				parsedFilter = JSON.parse(filter);
+				if (!Array.isArray(parsedFilter)) parsedFilter = [];
+			} catch (parseError) {
+				console.log("Error parsing filter query in getProductsBySubCategoryController:", parseError);
+				parsedFilter = [];
+			}
+		}
+
+		const result = await getProductsBySubCategoryService(
+			subcategorySlug,
+			Number(page),
+			Number(limit),
+			sortBy,
+			parsedFilter
+		);
+
+		if (result?.message && !result?.products) {
+			return res.status(404).json({
+				success: false,
+				message: result.message,
+			});
+		}
+
+		// console.log("Products by sub-category result:", result);
+
+		return res.status(200).json({
+			success: true,
+			data: result,
+		});
+	} catch (error) {
+		console.log("Error in getProductsBySubCategoryController:", error);
+		return res.status(500).json({
+			success: false,
+			message: "Error fetching products by sub-category",
+		});
+	}
+};

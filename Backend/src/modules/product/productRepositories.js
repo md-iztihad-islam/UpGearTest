@@ -712,3 +712,113 @@ export const getDiscountedRepository = async (page=1, limit=10, sortBy) => {
 		return { message: "Error fetching discounteds in repository" };
 	}
 }
+
+export const getProductsBySubCategoryRepository = async (subCategoryId, page = 1, limit = 10, sortBy, filter) => {
+	try {
+		console.log("At Repo: ", subCategoryId, page, limit, sortBy, filter);
+		const offset = (page - 1) * limit;
+
+		const sortOptions = {
+			"price-asc": { price: "asc" },
+			"price-desc": { price: "desc" },
+			"newest": { createdAt: "desc" },
+			"oldest": { createdAt: "asc" },
+		};
+
+		// `filter` is expected as an array of { filterId, filterItemId } pairs
+		// (same shape your AddGroup form already sends). We group selections by
+		// filterId so that:
+		//   - multiple picks WITHIN the same filter (e.g. Color: Red, Black) are OR'd
+		//   - picks ACROSS different filters (e.g. Color AND Size) are AND'd
+		let productFilterConditions = [];
+		if (Array.isArray(filter) && filter.length > 0) {
+			const grouped = filter.reduce((acc, f) => {
+				if (!f?.filterId || !f?.filterItemId) return acc;
+				if (!acc[f.filterId]) acc[f.filterId] = [];
+				acc[f.filterId].push(f.filterItemId);
+				return acc;
+			}, {});
+
+			productFilterConditions = Object.values(grouped).map((filterItemIds) => ({
+				productFilters: {
+					some: {
+						filterItemId: { in: filterItemIds },
+					},
+				},
+			}));
+		}
+
+		// NOTE: subCategoryId lives on Group, not Product, so we filter through
+		// the group relation rather than a direct field on Product.
+		const whereClause = {
+			group: { subCategoryId },
+			status: "published",
+			...(productFilterConditions.length > 0 && { AND: productFilterConditions }),
+		};
+
+		const [products, totalCount, availableFilters] = await Promise.all([
+			prisma.product.findMany({
+				where: whereClause,
+				orderBy: sortOptions[sortBy] || { createdAt: "desc" },
+				skip: offset,
+				take: limit,
+				include: {
+					group: {
+						select: {
+							groupId: true,
+							description: true,
+							insideDhakaCharge: true,
+							outsideDhakaCharge: true,
+							category: true,
+							subCategory: true,
+							brand: true,
+							warranty: true,
+							tags: {
+								orderBy: { createdAt: "asc" },
+							},
+						},
+					},
+					coupon: {
+						select: { code: true },
+					},
+					images: {
+						orderBy: { createdAt: "asc" },
+					},
+					stocks: {
+						where: { status: "available" },
+						select: {
+							stockId: true,
+							remaining: true,
+							reserved: true,
+							status: true,
+						},
+					},
+				},
+			}),
+			prisma.product.count({ where: whereClause }),
+			// All filters + their items for this sub-category, so the frontend
+			// can render the full filter UI regardless of what's currently selected.
+
+			prisma.filterItem.findMany({
+				where: {
+					subCategoryId
+				}, 
+				include: {
+					filter: true
+				}
+			}),
+		]);
+
+		return {
+			products,
+			filters: availableFilters,
+			page,
+			limit,
+			totalCount,
+			totalPages: Math.ceil(totalCount / limit),
+		};
+	} catch (error) {
+		console.log("Error in getProductsBySubCategoryRepository:", error);
+		return { message: "Error fetching products by sub-category in repository" };
+	}
+};

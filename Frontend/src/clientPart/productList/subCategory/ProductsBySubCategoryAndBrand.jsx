@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { SlidersHorizontal, ChevronLeft, ChevronRight, X } from "lucide-react";
-import getProductsBySubCategoryApi from "@/services/clientPart/products/getProductsBySubCategoryApi";
+import getProductsBySubCategoryAndBrandApi from "@/services/clientPart/products/getProductsBySubCategoryAndBrandApi";
 import ProductCard from "@/components/clientPart/productCard/ProductCard";
 
 const SORT_OPTIONS = [
@@ -14,10 +14,8 @@ const SORT_OPTIONS = [
 
 const LIMIT = 12;
 
-function ProductsBySubcategory() {
-    const { subCategorySlug } = useParams();
-
-    console.log("ProductsBySubcategory subcategorySlug:", subCategorySlug);
+function ProductsBySubCategoryAndBrand() {
+    const { subcategorySlug, brandSlug } = useParams();
 
     const [page, setPage] = useState(1);
     const [sortBy, setSortBy] = useState("newest");
@@ -33,24 +31,23 @@ function ProductsBySubcategory() {
     }, [selectedFilters]);
 
     const { data, isLoading, isError } = useQuery({
-        queryKey: ["productsBySubCategory", subCategorySlug, page, sortBy, filterArray],
+        queryKey: ["productsBySubCategoryAndBrand", subcategorySlug, brandSlug, page, sortBy, filterArray],
         queryFn: () =>
-            getProductsBySubCategoryApi(subCategorySlug, {
+            getProductsBySubCategoryAndBrandApi(subcategorySlug, brandSlug, {
                 page,
                 limit: LIMIT,
                 sortBy,
                 filter: filterArray,
             }),
-        enabled: !!subCategorySlug,
+        enabled: !!subcategorySlug && !!brandSlug,
         keepPreviousData: true,
     });
-
-    console.log("ProductsBySubcategory data:", data?.data);
 
     const result = data?.data;
     const products = result?.products || [];
     const totalPages = result?.totalPages || 1;
     const subCategoryTitle = result?.subCategory?.title || "Products";
+    const brandTitle = result?.brand?.title || result?.brand?.name || "";
 
     // Repository returns `filters` as a flat array of filterItem rows, each
     // carrying its parent filter as `.filter`. Group them by filterId here
@@ -109,7 +106,7 @@ function ProductsBySubcategory() {
                 {/* Header */}
                 <div className="mb-8">
                     <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-1">
-                        {subCategoryTitle}
+                        {brandTitle ? `${brandTitle} ${subCategoryTitle}` : subCategoryTitle}
                     </h1>
                     <p className="text-gray-500 text-sm">
                         {result?.totalCount ?? products.length} products found
@@ -277,4 +274,4 @@ function ProductsBySubcategory() {
     );
 }
 
-export default ProductsBySubcategory;
+export default ProductsBySubCategoryAndBrand;
