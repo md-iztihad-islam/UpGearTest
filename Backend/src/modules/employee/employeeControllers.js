@@ -1,3 +1,4 @@
+import { R2_PUBLIC_URL } from "../../config/serverConfig.js";
 import { generateJwtToken } from "../../utils/jwtToken.js";
 import {
     addEmployeeService,
@@ -76,8 +77,8 @@ export const addEmployeeController = async (req, res) => {
 
         const imageFile = req.file;
 
-        if(imageFile) {
-            employeeData.imageURL = imageFile.location;
+        if (imageFile) {
+            employeeData.imageURL = `${R2_PUBLIC_URL}/${imageFile.key}`;
         }
 
         const response = await addEmployeeService(employeeData);
@@ -187,8 +188,8 @@ export const updateEmployeeByIdController = async (req, res) => {
 
         const imageFile = req.file;
         // console.log("Image:", imageFile);
-        if(imageFile) {
-            updateData.imageURL = imageFile.location;
+        if (imageFile) {
+            updateData.imageURL = `${R2_PUBLIC_URL}/${imageFile.key}`;
         }
 
         // console.log("Final Update Data:", updateData);

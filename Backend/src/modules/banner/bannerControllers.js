@@ -1,10 +1,11 @@
+import { R2_PUBLIC_URL } from "../../config/serverConfig.js";
 import { activeBannerByIdService, addBannerService, deactiveBannerByIdService, deleteBannerByIdService, getActiveBannersInOrderService, getAllBannersInOrderService, getDeactiveBannersInOrderService } from "./bannerServices.js";
 
 export const addBannerController = async (req, res) => {
     try {
         const bannerData = { ...req.body };
         const bannerImage = req.file;
-        const imageURL = bannerImage?.location || bannerImage?.Location || bannerImage?.path;
+        const imageURL = bannerImage?.key ? `${R2_PUBLIC_URL}/${bannerImage.key}` : null;
 
         if (!imageURL) {
             return res.status(400).json({

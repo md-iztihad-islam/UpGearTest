@@ -1,3 +1,4 @@
+import { R2_PUBLIC_URL } from "../../config/serverConfig.js";
 import {
     addGroupService,
     deleteGroupByIdService,
@@ -35,8 +36,8 @@ export const addGroupController = async (req, res) => {
         } = req.body;
 
         // S3 URLs come from req.files, not req.body
-        const descImageFiles = req.files?.descImages ?? []; // multer-s3 array
-        const descImageURLs = descImageFiles.map((file) => file.location); 
+        const descImageFiles = req.files?.descImages ?? [];
+        const descImageURLs = descImageFiles.map((file) => `${R2_PUBLIC_URL}/${file.key}`);
         // file.location is the full S3 URL provided by multer-s3
 
         // Parse JSON arrays sent as strings
@@ -201,12 +202,12 @@ export const updateGroupByIdController = async (req, res) => {
         }
 
         // Adjust `.location` below if your multerConfig.js exposes a different field for the S3 URL
+
         const newImageFiles = req.files?.descImages || [];
         updateData.newDescriptionImages = newImageFiles.map((file, index) => ({
-            imageURL: file.location,
+            imageURL: `${R2_PUBLIC_URL}/${file.key}`,
             orderIndex: updateData.newImageOrderIndexes?.[index] ?? index,
         }));
-        delete updateData.newImageOrderIndexes;
 
         const response = await updateGroupByIdService(groupId, updateData);
 

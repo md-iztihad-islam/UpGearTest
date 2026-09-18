@@ -1,3 +1,4 @@
+import { R2_PUBLIC_URL } from "../../config/serverConfig.js";
 import {
 	addProductService,
 	deleteProductByIdService,
@@ -39,7 +40,7 @@ const parseBoolean = (value) => {
 	return undefined;
 };
 
-const getS3URL = (file) => file?.location || file?.Location || file?.path;
+const getS3URL = (file) => (file?.key ? `${R2_PUBLIC_URL}/${file.key}` : undefined);
 
 export const addProductController = async (req, res) => {
 	try {
