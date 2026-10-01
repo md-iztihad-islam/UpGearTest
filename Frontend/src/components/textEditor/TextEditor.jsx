@@ -7,7 +7,7 @@ export default function RichTextEditor({ value, onChange }) {
     return (
         <div className="w-full">
             <Editor
-                apiKey="pj4rz8mt29me7gl6imcon1t7ddb0cos5xgw6aw3582zvxd7a"
+                apiKey="homv3mmjs91da0rhw0y9dn0v7k8t64rs06sro6rqn3ice2eg"
                 onInit={(evt, editor) => editorRef.current = editor}
                 value={value}
                 onEditorChange={onChange}
