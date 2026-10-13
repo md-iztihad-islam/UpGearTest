@@ -23,7 +23,7 @@ function CancelledOrders() {
     const groups = new Map();
     (order.orderProducts || []).forEach((op) => {
       const key = op.product?.productId || op.productId;
-      const name = op.product?.title || `Product ${String(key).slice(0, 8)}`;
+      const name = [op.product?.title, op.product?.subTitle].filter(Boolean).join(" ") || `Product ${key}`;
       const existing = groups.get(key);
       if (existing) existing.quantity += 1;
       else groups.set(key, { productId: key, name, quantity: 1 });
@@ -204,7 +204,7 @@ function CancelledOrders() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="text-lg font-semibold text-white mb-1">
-                            Order #{order.orderId.slice(0, 8)}
+                            Order #{order.orderId}
                           </h3>
                           <p className="text-sm text-gray-400 mb-1">
                             {order.customer?.name} • {phoneFix(order.customer?.phone)}

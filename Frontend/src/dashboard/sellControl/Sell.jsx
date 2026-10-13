@@ -1,27 +1,32 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
-    Plus, Trash2, ShoppingCart, User, Phone,
+    Plus, Minus, Trash2, ShoppingCart, User, Phone,
     Mail, MapPin, CreditCard, Package, Tag, CheckCircle,
-    AlertCircle, Loader2, ChevronDown, Store,
-    ChevronRight, Building2, X
+    AlertCircle, Loader2, ChevronDown, Store, Percent,
+    ChevronRight, Building2, X, BadgePercent, Wallet,
 } from 'lucide-react';
 import getAllStoresApi from '@/services/dashboard/store/getAllStoresApi';
-import getCouponByCodeApi from '@/services/dashboard/coupon/getCouponByCodeApi';
-import updateCouponApi from '@/services/dashboard/coupon/updateCouponApi';
 import addOrderFromDashboardApi from '@/services/clientPart/order/addOrderFromDashboardApi';
+import quoteOrderApi from '@/services/clientPart/order/quoteOrderApi';
+import { apiErrorMessage } from '@/lib/apiError';
 import SearchForSale from './SearchForSale';
 
 const INPUT = "w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all text-sm";
 const SELECT = `${INPUT} appearance-none cursor-pointer`;
+const CARD = "bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl p-6";
 
-function Field({ label, icon: Icon, children }) {
+const money = (value) => `৳${Number(value || 0).toLocaleString('en-BD')}`;
+
+function Field({ label, icon: Icon, children, error }) {
     return (
         <div className="space-y-1.5">
             <label className="flex items-center gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold">
                 {Icon && <Icon className="w-3.5 h-3.5" />} {label}
             </label>
             {children}
+            {error && <p className="text-xs text-red-400">{error}</p>}
         </div>
     );
 }
@@ -30,6 +35,24 @@ const getAvailableQty = (product) => {
     if (!product?.stocks?.length) return 0;
     return product.stocks.reduce((sum, s) => sum + Math.max(0, (s.remaining || 0) - (s.reserved || 0)), 0);
 };
+
+const normalizePhone = (value) => {
+    let v = value.replace(/[\s-]/g, '');
+    if (v.startsWith('+880')) v = '0' + v.slice(4);
+    else if (v.startsWith('880')) v = '0' + v.slice(3);
+    return v;
+};
+
+// Value that only updates once typing has paused, so the live quote isn't
+// re-requested on every keystroke.
+function useDebouncedValue(value, delay = 350) {
+    const [debounced, setDebounced] = useState(value);
+    useEffect(() => {
+        const timer = setTimeout(() => setDebounced(value), delay);
+        return () => clearTimeout(timer);
+    }, [value, delay]);
+    return debounced;
+}
 
 // ── Store Selection Gate ──────────────────────────────────────
 function StoreSelector({ onSelect }) {
@@ -74,7 +97,7 @@ function StoreSelector({ onSelect }) {
                 </div>
 
                 {stores.length === 0 ? (
-                    <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl p-10 flex flex-col items-center gap-4 text-center">
+                    <div className={`${CARD} p-10 flex flex-col items-center gap-4 text-center`}>
                         <Building2 className="w-12 h-12 text-gray-600" />
                         <p className="text-gray-400 font-semibold">No stores available</p>
                         <p className="text-gray-600 text-sm">Please contact your administrator.</p>
@@ -92,7 +115,7 @@ function StoreSelector({ onSelect }) {
                                         <Store className="w-6 h-6 text-blue-400" />
                                     </div>
                                     <div>
-                                        <p className="text-white font-bold text-base">{store.name}</p>
+                                        <p className="text-white font-bold text-base">{store.title}</p>
                                         {store.address && (
                                             <p className="text-gray-500 text-sm mt-0.5 flex items-center gap-1">
                                                 <MapPin className="w-3 h-3" /> {store.address}
@@ -111,14 +134,14 @@ function StoreSelector({ onSelect }) {
 }
 
 // ── Product Add Panel ─────────────────────────────────────────
-// No more manual serial number entry — the backend reserves and assigns
-// serials automatically at order time (reserveStockQuantityRepository).
-function ProductSearch({ onAdd }) {
+// Serials are reserved and assigned by the backend when the sale is placed.
+function ProductSearch({ onAdd, quantityInCart }) {
     const [selected, setSelected] = useState(null);
     const [qty, setQty] = useState(1);
 
-    const availableQty = selected ? getAvailableQty(selected) : 0;
+    const availableQty = selected ? getAvailableQty(selected) - quantityInCart(selected.productId) : 0;
     const qtyExceedsStock = selected && qty > availableQty;
+    const image = selected?.bannerImageURL || selected?.images?.[0]?.imageURL;
 
     const handleProductSelect = (product) => {
         setSelected(product);
@@ -129,29 +152,24 @@ function ProductSearch({ onAdd }) {
         if (!selected || qtyExceedsStock || availableQty <= 0) return;
         onAdd({
             productId: selected.productId,
-            productName: selected.title,
-            originalPrice: selected.mainPrice ?? selected.price,
-            discountAmount: selected.discount || 0,
-            purchasePrice: selected.price,
-            productQuantity: qty,
+            title: selected.title,
+            subTitle: selected.subTitle,
+            unitPrice: Number(selected.price) || 0,
+            available: getAvailableQty(selected),
+            quantity: qty,
         });
         setSelected(null);
         setQty(1);
     };
 
-    const handleClearSelected = () => {
-        setSelected(null);
-        setQty(1);
-    };
-
     return (
-        <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl p-6 space-y-4">
+        <div className={`${CARD} space-y-4`}>
             <h3 className="font-bold text-lg flex items-center gap-2">
                 <Package className="w-5 h-5 text-blue-500" /> Add Product
             </h3>
 
             <SearchForSale
-                placeholder="Search product by name..."
+                placeholder="Search by name, brand or product ID..."
                 onSelectProduct={handleProductSelect}
                 className="w-full"
             />
@@ -159,21 +177,18 @@ function ProductSearch({ onAdd }) {
             {selected && (
                 <div className="space-y-4 pt-2 border-t border-gray-700">
                     <div className="flex items-center gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-                        {(selected.bannerImage || selected.images?.[0]?.url) && (
-                            <img
-                                src={selected.bannerImage || selected.images?.[0]?.url}
-                                alt=""
-                                className="w-12 h-12 rounded-lg object-cover shrink-0"
-                            />
-                        )}
+                        {image && <img src={image} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />}
                         <div className="flex-1 min-w-0">
-                            <p className="text-white font-semibold text-sm truncate">{selected.title}</p>
+                            <p className="text-white font-semibold text-sm truncate">
+                                {selected.title} {selected.subTitle}
+                            </p>
                             <p className="text-blue-400 text-xs mt-0.5">
-                                ৳{(selected.price || 0).toLocaleString()} per unit • {availableQty} available
+                                {money(selected.price)} per unit • {Math.max(0, availableQty)} available
                             </p>
                         </div>
                         <button
-                            onClick={handleClearSelected}
+                            onClick={() => setSelected(null)}
+                            aria-label="Clear selected product"
                             className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all shrink-0"
                         >
                             <X className="w-4 h-4" />
@@ -182,11 +197,11 @@ function ProductSearch({ onAdd }) {
 
                     {availableQty <= 0 ? (
                         <p className="text-sm text-red-400 flex items-center gap-2">
-                            <AlertCircle className="w-4 h-4" /> This product is out of stock and can't be sold right now.
+                            <AlertCircle className="w-4 h-4" /> No more units of this product are available.
                         </p>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <Field label="Quantity" icon={Package}>
+                            <Field label="Quantity" icon={Package} error={qtyExceedsStock ? `Only ${availableQty} available.` : ""}>
                                 <input
                                     type="number"
                                     min={1}
@@ -195,15 +210,12 @@ function ProductSearch({ onAdd }) {
                                     onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
                                     className={INPUT}
                                 />
-                                {qtyExceedsStock && (
-                                    <p className="text-xs text-red-400 mt-1">Only {availableQty} in stock.</p>
-                                )}
                             </Field>
                             <Field label="Line Total" icon={Tag}>
                                 <input
                                     type="text"
                                     readOnly
-                                    value={`৳${((selected.price || 0) * qty).toLocaleString()}`}
+                                    value={money((Number(selected.price) || 0) * qty)}
                                     className={`${INPUT} opacity-60 cursor-not-allowed`}
                                 />
                             </Field>
@@ -215,7 +227,7 @@ function ProductSearch({ onAdd }) {
                         disabled={availableQty <= 0 || qtyExceedsStock}
                         className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-all duration-200"
                     >
-                        <Plus className="w-4 h-4" /> Add to Order
+                        <Plus className="w-4 h-4" /> Add to Sale
                     </button>
                 </div>
             )}
@@ -223,7 +235,89 @@ function ProductSearch({ onAdd }) {
     );
 }
 
+// ── Custom discount ───────────────────────────────────────────
+const DISCOUNT_PRESETS = [
+    { type: 'percent', value: '5', label: '5%' },
+    { type: 'percent', value: '10', label: '10%' },
+    { type: 'amount', value: '100', label: '৳100' },
+    { type: 'amount', value: '500', label: '৳500' },
+];
+
+function CustomDiscount({ value, onChange, appliedAmount, error }) {
+    const set = (changes) => onChange({ ...value, ...changes });
+
+    return (
+        <Field label="Custom Discount" icon={BadgePercent} error={error}>
+            <div className="flex gap-2">
+                <div className="flex shrink-0 rounded-lg border border-gray-700 overflow-hidden">
+                    {[
+                        { type: 'amount', label: '৳' },
+                        { type: 'percent', label: '%' },
+                    ].map((option) => (
+                        <button
+                            key={option.type}
+                            type="button"
+                            onClick={() => set({ type: option.type })}
+                            aria-pressed={value.type === option.type}
+                            className={`w-10 text-sm font-semibold transition-colors ${
+                                value.type === option.type ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+                            }`}
+                        >
+                            {option.label}
+                        </button>
+                    ))}
+                </div>
+                <input
+                    type="number"
+                    min={0}
+                    max={value.type === 'percent' ? 100 : undefined}
+                    value={value.value}
+                    onChange={e => set({ value: e.target.value })}
+                    placeholder={value.type === 'percent' ? 'e.g. 10' : 'e.g. 200'}
+                    className={INPUT}
+                />
+                {value.value !== '' && (
+                    <button
+                        type="button"
+                        onClick={() => onChange({ type: value.type, value: '', reason: '' })}
+                        aria-label="Remove custom discount"
+                        className="px-2 text-gray-500 hover:text-white"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                )}
+            </div>
+            <div className="flex flex-wrap gap-1.5 pt-1">
+                {DISCOUNT_PRESETS.map((preset) => (
+                    <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => set({ type: preset.type, value: preset.value })}
+                        className="px-2.5 py-1 text-xs rounded-full bg-gray-800 border border-gray-700 text-gray-300 hover:border-blue-500 hover:text-white transition-colors"
+                    >
+                        {preset.label}
+                    </button>
+                ))}
+            </div>
+            {value.value !== '' && (
+                <input
+                    value={value.reason}
+                    onChange={e => set({ reason: e.target.value })}
+                    placeholder="Reason (optional) — e.g. regular customer"
+                    maxLength={200}
+                    className={`${INPUT} mt-2`}
+                />
+            )}
+            {appliedAmount > 0 && (
+                <p className="text-xs text-green-400 pt-1">Takes {money(appliedAmount)} off this sale.</p>
+            )}
+        </Field>
+    );
+}
+
 // ── Main Sell Component ───────────────────────────────────────
+const EMPTY_DISCOUNT = { type: 'amount', value: '', reason: '' };
+
 function Sell() {
     const [selectedStore, setSelectedStore] = useState(null);
     const [customerName, setCustomerName] = useState('');
@@ -232,157 +326,138 @@ function Sell() {
     const [insideDhaka, setInsideDhaka] = useState(true);
     const [deliveryAddress, setDeliveryAddress] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('cash');
-    const [shippingCost, setShippingCost] = useState(0);
-    const [products, setProducts] = useState([]);
-    const [feedback, setFeedback] = useState(null);
-
-    // Coupon — mirrors Checkout.jsx exactly.
-    const [appliedCoupon, setAppliedCoupon] = useState(null);
+    const [deliveryCharge, setDeliveryCharge] = useState('0');
+    const [paidAmount, setPaidAmount] = useState('');
+    const [sellerNote, setSellerNote] = useState('');
+    const [items, setItems] = useState([]);
+    const [customDiscount, setCustomDiscount] = useState(EMPTY_DISCOUNT);
     const [couponInput, setCouponInput] = useState('');
+    const [couponCode, setCouponCode] = useState('');
     const [couponError, setCouponError] = useState('');
     const [isCouponApplying, setIsCouponApplying] = useState(false);
+    const [formError, setFormError] = useState('');
+    const [lastSale, setLastSale] = useState(null);
 
-    const showFeedback = (message, type = 'success') => {
-        setFeedback({ message, type });
-        setTimeout(() => setFeedback(null), 4000);
-    };
+    const quantityInCart = (productId) => items.find((i) => i.productId === productId)?.quantity || 0;
 
-    const normalizePhone = (value) => {
-        let v = value.replace(/\s+/g, '');
-        if (v.startsWith('+880')) v = '0' + v.slice(4);
-        else if (v.startsWith('880')) v = '0' + v.slice(3);
-        return v;
-    };
+    // ── Live quote from the server (same maths as placing the sale) ──
+    const debouncedDelivery = useDebouncedValue(deliveryCharge);
+    const debouncedDiscount = useDebouncedValue(customDiscount);
+    const quoteInput = useMemo(() => ({
+        channel: 'POS',
+        items: items.map(({ productId, quantity }) => ({ productId, quantity })),
+        insideDhaka,
+        deliveryCharge: Number(debouncedDelivery) || 0,
+        couponCode: couponCode || undefined,
+        customDiscount: debouncedDiscount.value === ''
+            ? undefined
+            : { type: debouncedDiscount.type, value: debouncedDiscount.value, reason: debouncedDiscount.reason },
+    }), [items, insideDhaka, debouncedDelivery, couponCode, debouncedDiscount]);
 
-    const subTotal = products.reduce((sum, p) => sum + (p.purchasePrice * p.productQuantity), 0);
-    const couponDiscount = appliedCoupon?.discount || 0;
-    const totalAmount = Math.max(0, subTotal + Number(shippingCost) - couponDiscount);
-
-    const handleAddProduct = (product) => {
-        const existing = products.findIndex(p => p.productId === product.productId);
-        if (existing !== -1) {
-            const updated = [...products];
-            updated[existing].productQuantity += product.productQuantity;
-            setProducts(updated);
-        } else {
-            setProducts(prev => [...prev, product]);
-        }
-        showFeedback(`${product.productName} added to order`, 'success');
-    };
-
-    const handleRemoveProduct = (index) =>
-        setProducts(prev => prev.filter((_, i) => i !== index));
-
-    const { mutate: applyCouponMutation } = useMutation({
-        mutationFn: ({ couponId, updatedData }) => updateCouponApi(couponId, updatedData),
+    const { data: quoteRes, error: quoteError, isFetching: isQuoting } = useQuery({
+        queryKey: ['posQuote', quoteInput],
+        queryFn: () => quoteOrderApi(quoteInput),
+        enabled: items.length > 0,
+        placeholderData: keepPreviousData,
+        retry: false,
     });
+    const quote = items.length > 0 ? quoteRes?.data : null;
+    const quoteErrorField = quoteError?.response?.data?.field;
+    const quoteErrorMessage = quoteError ? apiErrorMessage(quoteError) : '';
 
-    const handleRemoveCoupon = () => {
-        setAppliedCoupon(null);
+    const subTotal = quote?.subTotal ?? items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+    const totalAmount = quote?.totalBill ?? subTotal;
+    const paidNumber = paidAmount === '' ? totalAmount : Math.min(Math.max(0, Number(paidAmount) || 0), totalAmount);
+    const dueAmount = Math.max(0, totalAmount - paidNumber);
+
+    // ── Items ──
+    const handleAddProduct = (line) => {
+        setItems(prev => {
+            const existing = prev.find(i => i.productId === line.productId);
+            if (!existing) return [...prev, line];
+            return prev.map(i => i.productId === line.productId
+                ? { ...i, quantity: Math.min(i.available, i.quantity + line.quantity) }
+                : i);
+        });
+        setFormError('');
+    };
+
+    const changeQuantity = (productId, delta) =>
+        setItems(prev => prev.map(i => i.productId === productId
+            ? { ...i, quantity: Math.min(i.available, Math.max(1, i.quantity + delta)) }
+            : i));
+
+    const removeItem = (productId) => setItems(prev => prev.filter(i => i.productId !== productId));
+
+    // ── Coupon ──
+    const removeCoupon = () => {
+        setCouponCode('');
         setCouponInput('');
         setCouponError('');
     };
 
-    const handleApplyCoupon = async () => {
+    const applyCoupon = async () => {
         const code = couponInput.trim().toUpperCase();
-        if (!code) {
-            setCouponError('Please enter a coupon code');
-            return;
-        }
-
+        if (!code) return setCouponError('Please enter a coupon code');
+        if (items.length === 0) return setCouponError('Add products first');
         setIsCouponApplying(true);
         setCouponError('');
-
         try {
-            const response = await getCouponByCodeApi(code);
-            const coupon = response?.data;
-
-            if (!coupon) throw new Error('Coupon not found');
-            if (!coupon.isActive) throw new Error('Coupon is inactive');
-            if (coupon.expiryDate && new Date(coupon.expiryDate) < new Date())
-                throw new Error('Coupon has expired');
-            if (coupon.maxUsageLimit && coupon.usedCount >= coupon.maxUsageLimit)
-                throw new Error('Coupon usage limit reached');
-            if (coupon.minOrderAmount && subTotal < coupon.minOrderAmount)
-                throw new Error(`Minimum order amount of ৳${coupon.minOrderAmount} required`);
-
-            let discount = coupon.discountPCT ? (subTotal * coupon.discountPCT) / 100 : coupon.discountAMT;
-            if (coupon.maxDiscountAmt) discount = Math.min(discount, coupon.maxDiscountAmt);
-            discount = Math.round(Math.min(discount, subTotal));
-
-            setAppliedCoupon({ code: coupon.code, discount, couponId: coupon.couponId });
-            showFeedback(`Coupon applied — saved ৳${discount.toLocaleString()}`, 'success');
+            await quoteOrderApi({ ...quoteInput, couponCode: code });
+            setCouponCode(code);
         } catch (error) {
-            setCouponError(error.message);
-            setAppliedCoupon(null);
+            setCouponError(apiErrorMessage(error, "Couldn't apply this coupon"));
         } finally {
             setIsCouponApplying(false);
         }
     };
 
-    const { mutate: addOrder, isPending } = useMutation({
+    const resetSale = () => {
+        setCustomerName(''); setCustomerEmail(''); setCustomerPhone('');
+        setDeliveryAddress(''); setPaymentMethod('cash'); setDeliveryCharge('0');
+        setPaidAmount(''); setSellerNote(''); setItems([]);
+        setCustomDiscount(EMPTY_DISCOUNT); removeCoupon(); setFormError('');
+    };
+
+    const { mutate: placeSale, isPending } = useMutation({
         mutationFn: (orderData) => addOrderFromDashboardApi(orderData),
-        onSuccess: () => {
-            if (appliedCoupon?.couponId) {
-                applyCouponMutation({
-                    couponId: appliedCoupon.couponId,
-                    updatedData: { usedCount: (appliedCoupon.usedCount || 0) + 1 },
-                });
-            }
-            showFeedback('Order placed successfully!', 'success');
-            setCustomerName(''); setCustomerEmail(''); setCustomerPhone('');
-            setDeliveryAddress(''); setPaymentMethod('cash'); setShippingCost(0);
-            setProducts([]); handleRemoveCoupon();
+        onSuccess: (response) => {
+            setLastSale(response.data);
+            resetSale();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         },
-        onError: (err) => {
-            showFeedback(err?.response?.data?.message || 'Failed to place order. Try again.', 'error');
-        }
+        onError: (error) => {
+            const message = apiErrorMessage(error, 'Failed to record the sale. Try again.');
+            if (error?.response?.data?.field === 'coupon') {
+                setCouponCode('');
+                setCouponError(message);
+            }
+            setFormError(message);
+        },
     });
 
     const handleSubmit = () => {
-        if (!customerName || !customerPhone) return showFeedback('Customer name and phone are required.', 'error');
-        if (products.length === 0) return showFeedback('Add at least one product.', 'error');
+        setLastSale(null);
+        if (!customerName.trim()) return setFormError('Customer name is required.');
+        if (!/^01[3-9]\d{8}$/.test(customerPhone)) return setFormError('Enter a valid 11-digit customer phone number.');
+        if (items.length === 0) return setFormError('Add at least one product.');
+        if (quoteErrorMessage) return setFormError(quoteErrorMessage);
 
-        // Backend reserves stock/serial numbers one unit at a time
-        // (reserveStockQuantityRepository(productId, 1, tx)), so quantity > 1
-        // must be flattened into one row per unit — same pattern as Checkout.jsx.
-        // No serialNumber is sent; the backend assigns it during reservation.
-        const flattenedProducts = [];
-        products.forEach((p) => {
-            for (let i = 0; i < p.productQuantity; i++) {
-                flattenedProducts.push({
-                    productId: p.productId,
-                    serialNumber: null,
-                    originalPrice: p.originalPrice,
-                    discountAmount: p.discountAmount,
-                    purchasePrice: p.purchasePrice,
-                });
-            }
-        });
-
-        // Field names now match orderReqData exactly, as consumed by addOrderService.
-        const orderData = {
-            customerName,
-            customerEmail,
+        placeSale({
+            customerName: customerName.trim(),
+            customerEmail: customerEmail.trim() || null,
             customerPhone,
             insideDhaka,
-            deliveryAddress,          // was "deliverAddress" — didn't match backend at all
+            deliveryAddress: deliveryAddress.trim(),
             paymentMethod,
-            subTotal,
-            deliveryCharge: Number(shippingCost), // was "shippingCost" — backend field is deliveryCharge
-            discount: couponDiscount,             // was a separate manual field — now driven by the coupon
-            totalBill: totalAmount,               // was "totalAmount"
-            orderStatus: 'ACCEPTED',              // in-store sale is fulfilled immediately; was "Accepted" (wrong enum case)
-            couponId: appliedCoupon?.couponId || null,
-            storeId: selectedStore.storeId,       // was "store": selectedStore._id
-            paymentStatus: 'PAID',                // in-store sale — adjust if COD/partial payment is possible here
-            paidAmount: totalAmount,
-            dueAmount: 0,
-            orderType: 'POS',                     // adjust to match your actual enum value
-            products: flattenedProducts,
-        };
-
-        addOrder(orderData);
+            deliveryCharge: Number(deliveryCharge) || 0,
+            couponCode: couponCode || undefined,
+            customDiscount: customDiscount.value === '' ? undefined : customDiscount,
+            paidAmount: paidAmount === '' ? undefined : Number(paidAmount),
+            sellerNote: sellerNote.trim() || undefined,
+            storeId: selectedStore.storeId,
+            items: items.map(({ productId, quantity }) => ({ productId, quantity })),
+        });
     };
 
     if (!selectedStore) return <StoreSelector onSelect={setSelectedStore} />;
@@ -398,7 +473,7 @@ function Sell() {
                         </h1>
                         <p className="text-gray-400 mt-2 flex items-center gap-2">
                             <Store className="w-4 h-4 text-blue-400" />
-                            <span className="text-blue-400 font-semibold">{selectedStore.name}</span>
+                            <span className="text-blue-400 font-semibold">{selectedStore.title}</span>
                         </p>
                     </div>
                     <button
@@ -409,24 +484,29 @@ function Sell() {
                     </button>
                 </div>
 
-                {feedback && (
-                    <div className={`p-4 rounded-xl border flex items-center gap-3 ${
-                        feedback.type === 'success' ? 'bg-green-900/30 border-green-700' : 'bg-red-900/30 border-red-700'
-                    }`}>
-                        {feedback.type === 'success'
-                            ? <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
-                            : <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
-                        }
-                        <p className={feedback.type === 'success' ? 'text-green-400' : 'text-red-400'}>
-                            {feedback.message}
+                {lastSale && (
+                    <div className="p-4 rounded-xl border bg-green-900/30 border-green-700 flex flex-wrap items-center gap-3">
+                        <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
+                        <p className="text-green-300 flex-1">
+                            Sale <span className="font-mono font-semibold">#{lastSale.orderId}</span> recorded — {money(lastSale.totalBill)}
+                            {Number(lastSale.dueAmount) > 0 && ` (${money(lastSale.dueAmount)} due)`}.
                         </p>
+                        <Link
+                            to={`/dashboard/searchorder/order/${lastSale.orderId}`}
+                            className="text-sm font-semibold text-green-300 hover:text-white underline-offset-2 hover:underline"
+                        >
+                            View order
+                        </Link>
+                        <button onClick={() => setLastSale(null)} aria-label="Dismiss" className="text-green-600 hover:text-white">
+                            <X className="w-4 h-4" />
+                        </button>
                     </div>
                 )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-2 space-y-6">
 
-                        <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl p-6 space-y-5">
+                        <div className={`${CARD} space-y-5`}>
                             <h2 className="font-bold text-lg flex items-center gap-2">
                                 <User className="w-5 h-5 text-blue-500" /> Customer Details
                             </h2>
@@ -435,7 +515,7 @@ function Sell() {
                                     <input className={INPUT} placeholder="John Doe" value={customerName} onChange={e => setCustomerName(e.target.value)} />
                                 </Field>
                                 <Field label="Phone Number" icon={Phone}>
-                                    <input className={INPUT} placeholder="017XXXXXXXX" maxLength={11} value={customerPhone} onChange={e => setCustomerPhone(normalizePhone(e.target.value))} />
+                                    <input className={INPUT} placeholder="017XXXXXXXX" inputMode="tel" value={customerPhone} onChange={e => setCustomerPhone(normalizePhone(e.target.value).slice(0, 11))} />
                                 </Field>
                                 <Field label="Email (optional)" icon={Mail}>
                                     <input className={INPUT} placeholder="john@example.com" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} />
@@ -450,37 +530,42 @@ function Sell() {
                                     </div>
                                 </Field>
                                 <div className="sm:col-span-2">
-                                    <Field label="Delivery Address" icon={MapPin}>
+                                    <Field label="Delivery Address (leave empty for in-store pickup)" icon={MapPin}>
                                         <input className={INPUT} placeholder="House, Road, Area..." value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)} />
                                     </Field>
                                 </div>
                             </div>
                         </div>
 
-                        <ProductSearch onAdd={handleAddProduct} />
+                        <ProductSearch onAdd={handleAddProduct} quantityInCart={quantityInCart} />
 
-                        {products.length > 0 && (
-                            <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl p-6">
+                        {items.length > 0 && (
+                            <div className={CARD}>
                                 <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
-                                    <ShoppingCart className="w-5 h-5 text-blue-500" /> Order Items
-                                    <span className="ml-auto text-sm text-gray-500 font-normal">{products.length} item{products.length !== 1 ? 's' : ''}</span>
+                                    <ShoppingCart className="w-5 h-5 text-blue-500" /> Sale Items
+                                    <span className="ml-auto text-sm text-gray-500 font-normal">
+                                        {items.reduce((n, i) => n + i.quantity, 0)} unit(s)
+                                    </span>
                                 </h2>
                                 <div className="space-y-3">
-                                    {products.map((p, i) => (
-                                        <div key={i} className="flex items-start gap-4 p-4 bg-gray-800/60 border border-gray-700 rounded-xl">
-                                            <div className="p-2 bg-blue-500/10 rounded-lg shrink-0">
-                                                <Package className="w-5 h-5 text-blue-400" />
-                                            </div>
+                                    {items.map((item) => (
+                                        <div key={item.productId} className="flex items-center gap-4 p-4 bg-gray-800/60 border border-gray-700 rounded-xl">
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-white font-semibold text-sm truncate">{p.productName}</p>
-                                                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                                                    <span className="text-xs text-gray-400">Qty: <span className="text-white">{p.productQuantity}</span></span>
-                                                    <span className="text-xs text-gray-400">Price: <span className="text-white">৳{p.purchasePrice.toLocaleString()}</span></span>
-                                                    <span className="text-xs text-gray-400">Total: <span className="text-blue-400 font-semibold">৳{(p.purchasePrice * p.productQuantity).toLocaleString()}</span></span>
-                                                </div>
-                                                {/* Serial numbers are assigned by the backend at order time — not shown here. */}
+                                                <p className="text-white font-semibold text-sm truncate">{item.title} {item.subTitle}</p>
+                                                <p className="text-xs text-gray-400 mt-1">
+                                                    {money(item.unitPrice)} each · <span className="text-blue-400 font-semibold">{money(item.unitPrice * item.quantity)}</span>
+                                                </p>
                                             </div>
-                                            <button onClick={() => handleRemoveProduct(i)} className="p-1.5 text-gray-600 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all shrink-0">
+                                            <div className="flex items-center bg-gray-900 border border-gray-700 rounded-lg overflow-hidden shrink-0">
+                                                <button onClick={() => changeQuantity(item.productId, -1)} disabled={item.quantity <= 1} aria-label="Decrease quantity" className="h-8 w-8 flex items-center justify-center hover:bg-gray-700 disabled:opacity-30">
+                                                    <Minus className="h-3.5 w-3.5" />
+                                                </button>
+                                                <span className="w-8 text-center text-sm font-semibold">{item.quantity}</span>
+                                                <button onClick={() => changeQuantity(item.productId, 1)} disabled={item.quantity >= item.available} aria-label="Increase quantity" className="h-8 w-8 flex items-center justify-center hover:bg-gray-700 disabled:opacity-30">
+                                                    <Plus className="h-3.5 w-3.5" />
+                                                </button>
+                                            </div>
+                                            <button onClick={() => removeItem(item.productId)} aria-label="Remove item" className="p-1.5 text-gray-600 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all shrink-0">
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
                                         </div>
@@ -492,7 +577,7 @@ function Sell() {
 
                     <div className="lg:col-span-1">
                         <div className="sticky top-6 space-y-4">
-                            <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl p-6 space-y-4">
+                            <div className={`${CARD} space-y-4`}>
                                 <h2 className="font-bold text-lg flex items-center gap-2">
                                     <CreditCard className="w-5 h-5 text-blue-500" /> Payment
                                 </h2>
@@ -508,72 +593,117 @@ function Sell() {
                                         <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
                                     </div>
                                 </Field>
+                                <Field label="Amount Paid Now (৳)" icon={Wallet}>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        value={paidAmount}
+                                        onChange={e => setPaidAmount(e.target.value)}
+                                        placeholder={`Full amount — ${money(totalAmount)}`}
+                                        className={INPUT}
+                                    />
+                                </Field>
                             </div>
 
-                            <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl p-6 space-y-4">
+                            <div className={`${CARD} space-y-4`}>
                                 <h2 className="font-bold text-lg flex items-center gap-2">
                                     <Tag className="w-5 h-5 text-blue-500" /> Pricing
                                 </h2>
-                                <Field label="Shipping Cost (৳)" icon={MapPin}>
-                                    <input type="number" min={0} value={shippingCost} onChange={e => setShippingCost(e.target.value)} className={INPUT} placeholder="0" />
+                                <Field label="Delivery Charge (৳)" icon={MapPin} error={quoteErrorField === 'deliveryCharge' ? quoteErrorMessage : ''}>
+                                    <input type="number" min={0} value={deliveryCharge} onChange={e => setDeliveryCharge(e.target.value)} className={INPUT} placeholder="0" />
                                 </Field>
 
-                                {!appliedCoupon ? (
-                                    <Field label="Coupon Code" icon={Tag}>
+                                <CustomDiscount
+                                    value={customDiscount}
+                                    onChange={setCustomDiscount}
+                                    appliedAmount={quote?.customDiscount || 0}
+                                    error={quoteErrorField === 'customDiscount' ? quoteErrorMessage : ''}
+                                />
+
+                                {!couponCode ? (
+                                    <Field label="Coupon Code" icon={Percent} error={couponError}>
                                         <div className="flex gap-2">
                                             <input
                                                 className={INPUT}
                                                 placeholder="Enter code"
                                                 value={couponInput}
                                                 onChange={e => setCouponInput(e.target.value)}
+                                                onKeyDown={e => e.key === 'Enter' && applyCoupon()}
                                             />
                                             <button
-                                                onClick={handleApplyCoupon}
+                                                onClick={applyCoupon}
                                                 disabled={isCouponApplying}
                                                 className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-white text-sm font-semibold rounded-lg transition-colors shrink-0"
                                             >
-                                                {isCouponApplying ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
+                                                {isCouponApplying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply'}
                                             </button>
                                         </div>
-                                        {couponError && <p className="text-xs text-red-400 mt-1">{couponError}</p>}
                                     </Field>
                                 ) : (
-                                    <div className="flex justify-between items-center text-xs bg-green-500/10 border border-green-500/30 p-2.5 rounded-lg">
-                                        <span className="text-green-500 font-bold">{appliedCoupon.code} Applied!</span>
-                                        <X className="h-4 w-4 cursor-pointer text-gray-500 hover:text-white" onClick={handleRemoveCoupon} />
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between items-center text-xs bg-green-500/10 border border-green-500/30 p-2.5 rounded-lg">
+                                            <span className="text-green-500 font-bold">{couponCode} applied</span>
+                                            <button onClick={removeCoupon} aria-label="Remove coupon" className="text-gray-500 hover:text-white">
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                        {quoteErrorField === 'coupon' && <p className="text-xs text-red-400">{quoteErrorMessage}</p>}
                                     </div>
                                 )}
 
-                                <div className="border-t border-gray-700 pt-4 space-y-2 text-sm">
+                                <div className={`border-t border-gray-700 pt-4 space-y-2 text-sm transition-opacity ${isQuoting ? 'opacity-60' : ''}`}>
                                     <div className="flex justify-between text-gray-400">
                                         <span>Subtotal</span>
-                                        <span className="text-white">৳{subTotal.toLocaleString()}</span>
+                                        <span className="text-white">{money(subTotal)}</span>
                                     </div>
                                     <div className="flex justify-between text-gray-400">
-                                        <span>Shipping</span>
-                                        <span className="text-white">৳{Number(shippingCost).toLocaleString()}</span>
+                                        <span>Delivery</span>
+                                        <span className="text-white">{money(quote?.deliveryCharge ?? deliveryCharge)}</span>
                                     </div>
-                                    {couponDiscount > 0 && (
+                                    {quote?.couponDiscount > 0 && (
                                         <div className="flex justify-between text-green-400">
-                                            <span>Discount</span>
-                                            <span>-৳{couponDiscount.toLocaleString()}</span>
+                                            <span>Coupon ({quote.coupon?.code})</span>
+                                            <span>-{money(quote.couponDiscount)}</span>
+                                        </div>
+                                    )}
+                                    {quote?.customDiscount > 0 && (
+                                        <div className="flex justify-between text-green-400">
+                                            <span>Custom discount{quote.customDiscountLabel ? ` (${quote.customDiscountLabel})` : ''}</span>
+                                            <span>-{money(quote.customDiscount)}</span>
                                         </div>
                                     )}
                                     <div className="flex justify-between font-bold text-base border-t border-gray-700 pt-3">
                                         <span className="text-white">Total</span>
-                                        <span className="text-blue-400 text-lg">৳{totalAmount.toLocaleString()}</span>
+                                        <span className="text-blue-400 text-lg">{money(totalAmount)}</span>
                                     </div>
+                                    {dueAmount > 0 && (
+                                        <div className="flex justify-between text-amber-400">
+                                            <span>Due after this payment</span>
+                                            <span>{money(dueAmount)}</span>
+                                        </div>
+                                    )}
                                 </div>
+
+                                <Field label="Note (optional)" icon={Tag}>
+                                    <input className={INPUT} value={sellerNote} onChange={e => setSellerNote(e.target.value)} placeholder="Internal note for this sale" maxLength={300} />
+                                </Field>
                             </div>
+
+                            {(formError || (quoteErrorMessage && !['coupon', 'customDiscount', 'deliveryCharge'].includes(quoteErrorField))) && (
+                                <div className="p-3 rounded-xl border bg-red-900/30 border-red-700 flex items-start gap-2">
+                                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                                    <p className="text-sm text-red-300">{formError || quoteErrorMessage}</p>
+                                </div>
+                            )}
 
                             <button
                                 onClick={handleSubmit}
-                                disabled={isPending || products.length === 0}
+                                disabled={isPending || items.length === 0 || !quote}
                                 className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold text-base rounded-xl transition-all duration-300 flex items-center justify-center gap-2"
                             >
                                 {isPending
-                                    ? <><Loader2 className="w-5 h-5 animate-spin" /> Placing Order...</>
-                                    : <><ShoppingCart className="w-5 h-5" /> Place Order</>
+                                    ? <><Loader2 className="w-5 h-5 animate-spin" /> Recording Sale...</>
+                                    : <><ShoppingCart className="w-5 h-5" /> Complete Sale · {money(totalAmount)}</>
                                 }
                             </button>
                         </div>

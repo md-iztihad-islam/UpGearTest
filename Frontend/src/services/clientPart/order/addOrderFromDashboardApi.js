@@ -1,13 +1,10 @@
 import axiosInstance from "@/helpers/dashboard/axiosInstance";
 
+// Dashboard Sell (POS). Throws on failure so the caller can show the
+// server's message. Response: { success, message, data: order }
 async function addOrderFromDashboardApi(orderData) {
-    try {
-        const response = await axiosInstance.post("/order/dashboard/add", orderData);
-        return response.data;
-    } catch (error) {
-        console.log("Error in addOrderApi:", error);
-        return null;
-    }
+    const response = await axiosInstance.post("/order/dashboard/add", orderData);
+    return response.data;
 }
 
 export default addOrderFromDashboardApi;

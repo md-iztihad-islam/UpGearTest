@@ -5,7 +5,9 @@ import deleteMultipleShippedOrdersApi from "@/services/dashboard/order/deleteMul
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { reportBulkResult } from "@/lib/orderBulk";
 import { ArrowLeft, Eye, Download, Calendar, Loader2, FileText, X, CheckSquare, Square, Trash2 } from "lucide-react";
+import useInvoiceDownload from "../useInvoiceDownload";
 
 function ShippedOrders() {
   const navigate = useNavigate();
@@ -29,7 +31,7 @@ function ShippedOrders() {
     const groups = new Map();
     (order.orderProducts || []).forEach((op) => {
       const key = op.product?.productId || op.productId;
-      const name = op.product?.title || `Product ${String(key).slice(0, 8)}`;
+      const name = [op.product?.title, op.product?.subTitle].filter(Boolean).join(" ") || `Product ${key}`;
       const existing = groups.get(key);
       if (existing) existing.quantity += 1;
       else groups.set(key, { productId: key, name, quantity: 1 });
@@ -89,25 +91,10 @@ function ShippedOrders() {
     window.URL.revokeObjectURL(url);
   };
 
-  const downloadSelectedInvoices = () => {
-    const withInvoice = selectedOrders.filter((o) => o.invoiceURL);
-    if (withInvoice.length === 0) {
-      alert("None of the selected orders have an invoice available");
-      return;
-    }
-    withInvoice.forEach((o) => window.open(o.invoiceURL, "_blank"));
-    if (withInvoice.length < selectedOrders.length) {
-      alert(`${selectedOrders.length - withInvoice.length} selected order(s) had no invoice and were skipped`);
-    }
-  };
+  // Invoices are generated on demand; several orders come back as one PDF.
+  const { download: downloadInvoices, isDownloading, downloadingIds } = useInvoiceDownload();
+  const downloadSelectedInvoices = () => downloadInvoices(selectedOrders.map((o) => o.orderId));
 
-  const handleDownloadInvoice = (invoiceURL) => {
-    if (invoiceURL) {
-      window.open(invoiceURL, "_blank");
-    } else {
-      alert("Invoice not available for this order");
-    }
-  };
 
   const handleClearFilters = () => {
     setStartDate("");
@@ -134,8 +121,8 @@ function ShippedOrders() {
       const ids = Array.from(selectedIds);
       return cancelMultipleShippedOrdersApi(ids);
     },
-    onSuccess: () => {
-      setSelectedIds(new Set());
+    onSuccess: (result) => {
+      setSelectedIds(reportBulkResult(result));
       queryClient.invalidateQueries({ queryKey: ["shippedOrdersData"] });
     },
     onError: (error) => {
@@ -146,15 +133,15 @@ function ShippedOrders() {
 
   const handleCancelSelected = () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`Cancel ${selectedIds.size} shipped order(s)? This cannot be undone.`)) return;
+    if (!window.confirm(`Cancel ${selectedIds.size} shipped order(s)? Use this for parcels that came back — their units are put back into stock.`)) return;
     cancelSelected();
   };
 
   // Deleting a shipped order only removes the record — stock stays as it is.
   const { mutate: deleteSelected, isPending: isDeletingSelected } = useMutation({
     mutationFn: () => deleteMultipleShippedOrdersApi(Array.from(selectedIds)),
-    onSuccess: () => {
-      setSelectedIds(new Set());
+    onSuccess: (result) => {
+      setSelectedIds(reportBulkResult(result));
       queryClient.invalidateQueries({ queryKey: ["shippedOrdersData"] });
     },
     onError: (error) => {
@@ -264,10 +251,11 @@ function ShippedOrders() {
               </button>
               <button
                 onClick={downloadSelectedInvoices}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors duration-200 font-medium"
+                disabled={isDownloading}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors duration-200 font-medium"
               >
-                <FileText className="w-4 h-4" />
-                Invoices
+                {isDownloading && downloadingIds.length > 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                Invoices ({selectedIds.size})
               </button>
               <button
                 onClick={handleCancelSelected}
@@ -344,7 +332,7 @@ function ShippedOrders() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="text-lg font-semibold text-white mb-1">
-                            Order #{order.orderId.slice(0, 8)}
+                            Order #{order.orderId}
                           </h3>
                           <p className="text-sm text-gray-400 mb-1">
                             {order.customer?.name} • {phoneFix(order.customer?.phone)}
@@ -364,10 +352,13 @@ function ShippedOrders() {
 
                       <div className="flex gap-3 sm:flex-shrink-0">
                         <button
-                          onClick={() => handleDownloadInvoice(order.invoiceURL)}
-                          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all duration-200 hover:scale-105 font-medium"
+                          onClick={() => downloadInvoices([order.orderId])}
+                          disabled={isDownloading}
+                          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white rounded-lg transition-all duration-200 hover:scale-105 font-medium"
                         >
-                          <FileText className="w-4 h-4" />
+                          {isDownloading && downloadingIds.length === 1 && downloadingIds[0] === order.orderId
+                            ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : <FileText className="w-4 h-4" />}
                           <span className="hidden sm:inline">Invoice</span>
                         </button>
                         <button

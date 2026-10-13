@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 
 // Layouts - Load immediately as they're needed on every page
 import DashboardLayout from "@/layout/DashboardLayout";
@@ -10,9 +10,7 @@ import Warranty from "@/clientPart/warranty/Warranty";
 import ProtectedRoute from "@/helpers/dashboard/protectedRoute";
 import Category from "@/dashboard/categoryControl/category/Category";
 import SearchOrder from "@/dashboard/search/SearchOrder";
-import SigninSignUp from "@/clientPart/trackOrder/SigninSignup";
-import CutomerDashboard from "@/clientPart/trackOrder/CustmerDashboard";
-import Details from "@/clientPart/trackOrder/Details";
+import TrackOrder from "@/clientPart/trackOrder/TrackOrder";
 import Sell from "@/dashboard/sellControl/Sell";
 // import StoreControl from "@/dashboard/storeControl/storeControl";
 // import AddStore from "@/dashboard/storeControl/addStore/addStore";
@@ -155,9 +153,9 @@ function Routing() {
             <Route path="/" element={<MainLayout />}>
                 <Route index element={<Suspense fallback={<UpGearLoader />}><Home /></Suspense>} />
                 <Route path="signin" element={<Suspense fallback={<UpGearLoader />}><Login /></Suspense>} />
-                <Route path="customer/signin" element={<Suspense fallback={<UpGearLoader />}><SigninSignUp /></Suspense>} />
-                <Route path="customer/dashboard" element={<Suspense fallback={<UpGearLoader />}><CutomerDashboard /></Suspense>} />
-                <Route path="customer/dashbaord/:orderId" element={<Suspense fallback={<UpGearLoader />}><Details /></Suspense>} />
+                <Route path="track-order" element={<TrackOrder />} />
+                {/* Old customer-account pages now point to order tracking */}
+                <Route path="customer/*" element={<Navigate to="/track-order" replace />} />
                 <Route path="warranty" element={<Suspense fallback={<UpGearLoader />}><Warranty /></Suspense>} />
                 <Route path="warranty/:warrantyId" element={<Suspense fallback={<UpGearLoader />}><WarrantyDetails /></Suspense>} />
                 <Route path="products/:productSlug" element={<Suspense fallback={<UpGearLoader />}><ProductDetails /></Suspense>} />

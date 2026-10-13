@@ -1,13 +1,9 @@
-import axiosInstance from "@/helpers/dashboard/axiosInstance";
+import getOrderSummaryApi from "./getOrderSummaryApi";
 
+// Kept for the dashboard home card: { data: number }
 async function calculateRevenueForAcceptedOrdersApi() {
-    try {
-        const response = await axiosInstance.get('/order/revenue/accepted');
-        return response.data;
-    } catch (error) {
-        console.log('Error fetching revenue for accepted orders:', error);
-        throw error;
-    }
+    const summary = await getOrderSummaryApi();
+    return { data: summary?.data?.revenue ?? 0 };
 }
 
-export default calculateRevenueForAcceptedOrdersApi;    
+export default calculateRevenueForAcceptedOrdersApi;

@@ -7,6 +7,7 @@ import {
     CreditCard, Tag, FileText
 } from "lucide-react";
 import getCustomerByIdApi from "@/services/dashboard/customer/getCustomerByIdApi";
+import useInvoiceDownload from "@/dashboard/orderControl/useInvoiceDownload";
 
 // --------------- Status Config ---------------
 const statusConfig = {
@@ -53,6 +54,7 @@ function InfoChip({ icon: Icon, label, value, accent = "blue" }) {
 
 // --------------- Order Card ---------------
 function OrderCard({ order }) {
+    const { download: downloadInvoice, isDownloading } = useInvoiceDownload();
     const date = order.createdAt
         ? new Date(order.createdAt).toLocaleDateString("en-US", {
               day: "numeric", month: "short", year: "numeric",
@@ -140,17 +142,19 @@ function OrderCard({ order }) {
                     <CreditCard className="w-3.5 h-3.5" />
                     {paymentLabel}
                 </div>
-                {order.invoiceUrl && (
-                    <a
-                        href={order.invoiceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 hover:underline transition-colors"
-                        onClick={(e) => e.stopPropagation()}
+                {order.orderId && (
+                    <button
+                        type="button"
+                        disabled={isDownloading}
+                        className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 hover:underline disabled:opacity-60 transition-colors"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            downloadInvoice([order.orderId]);
+                        }}
                     >
                         <FileText className="w-3.5 h-3.5" />
-                        View Invoice
-                    </a>
+                        {isDownloading ? "Preparing…" : "Download Invoice"}
+                    </button>
                 )}
             </div>
         </div>

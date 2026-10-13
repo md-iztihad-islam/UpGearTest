@@ -471,11 +471,24 @@ export const getStocksByProductIdRepository = async (productId) => {
     });
 };
 
-// Reserves `quantity` units of a product, pulling from whichever stocks
-// have availability, largest remaining first. Returns the stockIds touched
-// and the serial numbers reserved. Throws if it can't fulfill the quantity —
-// callers MUST let this propagate (don't swallow it) so a failed reservation
-// correctly rolls back the surrounding order transaction.
+// ── Unit movements used by the order flow ────────────────────────────────────
+// Stock.remaining  = units not yet sold (still includes reserved ones)
+// Stock.reserved   = units held by PENDING orders
+// available        = remaining - reserved = serials with isInWarehouse = true
+//
+//   place order  → reserve   reserved +n, serial leaves warehouse
+//   accept       → commit    remaining -n, reserved -n, serial soldAt set
+//   cancel (pending)           → release  reserved -n, serial back in warehouse
+//   cancel (accepted/shipped)  → restock  remaining +n, serial back in warehouse
+//
+// Every helper takes the order's units ({ serialNumber, stockId }) and does
+// one stock update per stock instead of one per unit.
+
+export class StockUnavailableError extends Error {}
+
+// Reserves `quantity` units of a product from whichever stocks have them,
+// largest first. Throws StockUnavailableError if it can't; callers must let
+// it propagate so the surrounding order transaction rolls back.
 export const reserveStockQuantityRepository = async (productId, quantity, tx = prisma) => {
     const stocks = await tx.stock.findMany({
         where: { productId, remaining: { gt: 0 } },
@@ -483,90 +496,116 @@ export const reserveStockQuantityRepository = async (productId, quantity, tx = p
             serialNumbers: {
                 where: { isInWarehouse: true },
                 orderBy: { serialNumber: "asc" },
+                select: { serialNumber: true },
             },
         },
         orderBy: { remaining: "desc" },
     });
 
-    let remainingQuantityToReserve = quantity;
-    const reservedStockIds = [];
-    let reservedSerialNumbers = [];
+    // Fail before touching anything when there simply isn't enough.
+    const totalAvailable = stocks.reduce(
+        (sum, stock) => sum + Math.max(0, Math.min(stock.remaining - stock.reserved, stock.serialNumbers.length)),
+        0
+    );
+    if (totalAvailable < quantity) {
+        throw new StockUnavailableError(
+            `Not enough stock for product ${productId}: requested ${quantity}, only ${totalAvailable} available`
+        );
+    }
+
+    let toReserve = quantity;
+    const reservedUnits = [];
 
     for (const stock of stocks) {
-        if (remainingQuantityToReserve <= 0) break;
+        if (toReserve <= 0) break;
 
-        // Cap by BOTH the stock's declared `remaining` count AND how many
-        // serials are actually flagged in-warehouse. If those two numbers
-        // ever drift apart (bad data), we reserve only what we can prove
-        // exists, instead of promising a serial number that isn't there.
-        const availableSerials = stock.serialNumbers.length;
-        const quantityToReserveFromThisStock = Math.min(
-            stock.remaining,
-            availableSerials,
-            remainingQuantityToReserve,
-        );
+        // Cap by both the stock's counters and the serials actually in the
+        // warehouse, so bad data can't make us promise a unit that isn't there.
+        const take = Math.min(stock.remaining - stock.reserved, stock.serialNumbers.length, toReserve);
+        if (take <= 0) continue;
 
-        if (quantityToReserveFromThisStock <= 0) continue;
+        const serials = stock.serialNumbers.slice(0, take).map((sn) => sn.serialNumber);
 
-        const serialNumberIds = stock.serialNumbers
-            .slice(0, quantityToReserveFromThisStock)
-            .map((sn) => sn.serialNumber);
+        // Conditional update: if a concurrent order grabbed one of these
+        // serials first, fewer rows match and we refuse instead of
+        // double-selling the same unit.
+        const { count } = await tx.serialNumber.updateMany({
+            where: { serialNumber: { in: serials }, isInWarehouse: true },
+            data: { isInWarehouse: false },
+        });
+        if (count !== serials.length) {
+            throw new StockUnavailableError("Stock changed while placing the order, please try again");
+        }
 
         await tx.stock.update({
             where: { stockId: stock.stockId },
-            data: { reserved: { increment: quantityToReserveFromThisStock } },
+            data: { reserved: { increment: take } },
         });
 
-        await tx.serialNumber.updateMany({
-            where: { serialNumber: { in: serialNumberIds } },
-            data: { isInWarehouse: false },
-        });
-
-        reservedSerialNumbers = reservedSerialNumbers.concat(serialNumberIds);
-        reservedStockIds.push(stock.stockId);
-        remainingQuantityToReserve -= quantityToReserveFromThisStock;
+        serials.forEach((serialNumber) => reservedUnits.push({ serialNumber, stockId: stock.stockId }));
+        toReserve -= take;
     }
 
-    if (remainingQuantityToReserve > 0) {
-        throw new Error(
-            `Not enough stock available for product ${productId}: ` +
-            `requested ${quantity}, short by ${remainingQuantityToReserve}`
+    if (toReserve > 0) {
+        throw new StockUnavailableError(
+            `Not enough stock for product ${productId}: requested ${quantity}, only ${quantity - toReserve} available`
         );
     }
 
-    return { reservedStockIds, reservedSerialNumbers };
+    return {
+        reservedUnits,
+        reservedSerialNumbers: reservedUnits.map((u) => u.serialNumber),
+    };
 };
 
-export const releaseReservedStockQuantityRepository = async (stockId, serialNumber, tx = prisma) => {
-    await tx.stock.update({
-        where: { stockId },
-        data: { reserved: { decrement: 1 } },
+const countByStock = (units) => {
+    const counts = new Map();
+    units.forEach(({ stockId }) => {
+        if (stockId) counts.set(stockId, (counts.get(stockId) || 0) + 1);
     });
+    return counts;
+};
 
-    await tx.serialNumber.update({
-        where: { serialNumber },
+const serialsOf = (units) => units.map((u) => u.serialNumber).filter(Boolean);
+
+// Reserved units become sold (order accepted, or a POS sale).
+export const commitReservedUnitsRepository = async (units, tx = prisma, { storeId } = {}) => {
+    for (const [stockId, n] of countByStock(units)) {
+        await tx.stock.update({
+            where: { stockId },
+            data: { remaining: { decrement: n }, reserved: { decrement: n } },
+        });
+    }
+    await tx.serialNumber.updateMany({
+        where: { serialNumber: { in: serialsOf(units) } },
+        data: { soldAt: new Date(), ...(storeId ? { storeId } : {}) },
+    });
+};
+
+// A pending order is cancelled: its reservation is given back.
+export const releaseReservedUnitsRepository = async (units, tx = prisma) => {
+    for (const [stockId, n] of countByStock(units)) {
+        await tx.stock.update({
+            where: { stockId },
+            data: { reserved: { decrement: n } },
+        });
+    }
+    await tx.serialNumber.updateMany({
+        where: { serialNumber: { in: serialsOf(units) } },
         data: { isInWarehouse: true },
     });
 };
 
-export const decreaseRemainingStockQuantityRepository = async (stockId, tx = prisma) => {
-    return tx.stock.update({
-        where: { stockId },
-        data: {
-            remaining: { decrement: 1 },
-            reserved: { decrement: 1 },
-        },
-    });
-};
-
-export const decreaseOnlyRemainingStockQuantityRepository = async (stockId, serialNumber, tx = prisma) => {
-    await tx.stock.update({
-        where: { stockId },
-        data: { remaining: { decrement: 1 } },
-    });
-
-    await tx.serialNumber.update({
-        where: { serialNumber },
-        data: { isInWarehouse: false },
+// An accepted/shipped order is cancelled: the units come back into stock.
+export const restockSoldUnitsRepository = async (units, tx = prisma) => {
+    for (const [stockId, n] of countByStock(units)) {
+        await tx.stock.update({
+            where: { stockId },
+            data: { remaining: { increment: n } },
+        });
+    }
+    await tx.serialNumber.updateMany({
+        where: { serialNumber: { in: serialsOf(units) } },
+        data: { isInWarehouse: true, soldAt: null },
     });
 };

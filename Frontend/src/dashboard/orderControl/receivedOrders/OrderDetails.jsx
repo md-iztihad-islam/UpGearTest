@@ -1,11 +1,14 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { useState } from "react";
 import getOrderByOrderIdApi from "@/services/dashboard/order/getOrderByOrderIdApi";
-import { ArrowLeft, User, MapPin, CreditCard, Package, FileText, Loader2, CheckCircle, XCircle, Trash2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, User, MapPin, CreditCard, Package, FileText, Loader2, CheckCircle, XCircle, Trash2, AlertTriangle, Truck, Store } from "lucide-react";
 import acceptOrderApi from "@/services/dashboard/order/acceptOrder";
+import shipOrderApi from "@/services/dashboard/order/shipOrder";
 import cancelOrderApi from "@/services/dashboard/order/cancelOrderApi";
 import deleteOrderApi from "@/services/dashboard/order/deleteOrderApi";
+import { apiErrorMessage } from "@/lib/apiError";
+import useInvoiceDownload from "../useInvoiceDownload";
 
 function DeleteConfirmModal({ isOpen, onConfirm, onCancel, isDeleting }) {
     if (!isOpen) return null;
@@ -22,7 +25,7 @@ function DeleteConfirmModal({ isOpen, onConfirm, onCancel, isDeleting }) {
                         <h3 className="text-xl font-bold text-white mb-2">Delete Order?</h3>
                         <p className="text-gray-400 text-sm leading-relaxed">
                             This action is <span className="text-red-400 font-semibold">permanent</span> and cannot be undone.
-                            The order and all associated data will be removed.
+                            The order record is removed; stock is not changed.
                         </p>
                     </div>
                     <div className="flex gap-3 w-full mt-2">
@@ -70,39 +73,38 @@ function OrderDetails() {
     // Confirmed shape from the actual endpoint: { data: {...order}, message }
     const order = orderResponse?.data || {};
 
-    const { mutate: acceptOrder, isPending: isMutating } = useMutation({
-        // Serial numbers are already reserved automatically at order-creation
-        // time (see reserveStockQuantityRepository in addOrderService), so
-        // accepting just transitions status — no body needed.
-        mutationFn: () => acceptOrderApi(orderId),
-        onSuccess: () => {
-            window.showToast("Order confirmed successfully!", "success");
-            navigate(-1);
-        },
-        onError: () => {
-            window.showToast("Error confirming order. Please try again.", "error");
-        },
-    });
+    const queryClient = useQueryClient();
 
-    const { mutate: cancelOrder, isPending: isCancelling } = useMutation({
-        mutationFn: () => cancelOrderApi(orderId),
-        onSuccess: () => {
-            window.showToast("Order cancelled successfully!", "success");
-            navigate(-1);
-        },
-        onError: () => {
-            window.showToast("Error cancelling order. Please try again.", "error");
-        },
-    });
+    // Status changes refresh this page (and the lists) so staff see the result.
+    const useOrderAction = (mutationFn, successMessage) =>
+        useMutation({
+            mutationFn,
+            onSuccess: () => {
+                window.showToast(successMessage, "success");
+                queryClient.invalidateQueries({ queryKey: ["orderDetails", orderId] });
+                ["pendingOrdersData", "acceptedOrdersData", "shippedOrdersData", "cancelledOrdersData"].forEach((key) =>
+                    queryClient.invalidateQueries({ queryKey: [key] })
+                );
+            },
+            onError: (err) => window.showToast(apiErrorMessage(err), "error"),
+        });
+
+    const { download: downloadInvoice, isDownloading } = useInvoiceDownload();
+
+    const { mutate: acceptOrder, isPending: isAccepting } = useOrderAction(() => acceptOrderApi(orderId), "Order accepted");
+    const { mutate: shipOrder, isPending: isShipping } = useOrderAction(() => shipOrderApi(orderId), "Order marked as shipped");
+    const { mutate: cancelOrder, isPending: isCancelling } = useOrderAction(() => cancelOrderApi(orderId), "Order cancelled");
 
     const { mutate: deleteOrder, isPending: isDeleting } = useMutation({
         mutationFn: () => deleteOrderApi(orderId),
         onSuccess: () => {
-            window.showToast("Order deleted successfully!", "success");
+            window.showToast("Order deleted", "success");
+            queryClient.invalidateQueries({ queryKey: ["shippedOrdersData"] });
             navigate(-1);
         },
-        onError: () => {
-            window.showToast("Error deleting order. Please try again.", "error");
+        onError: (err) => {
+            setShowDeleteModal(false);
+            window.showToast(apiErrorMessage(err), "error");
         },
     });
 
@@ -132,6 +134,10 @@ function OrderDetails() {
 
     const {
         customer,
+        store,
+        employee,
+        coupon,
+        orderType,
         deliveryAddress,
         paymentMethod,
         insideDhaka,
@@ -145,7 +151,6 @@ function OrderDetails() {
         transactionId,
         orderProducts = [],
         orderStatus,
-        invoiceURL,
         deliveryNote,
         sellerNote,
         createdAt,
@@ -167,15 +172,11 @@ function OrderDetails() {
 
     const formatMoney = (value) => `৳${toNumber(value).toLocaleString("en-BD")}`;
 
-    // orderStatus values observed so far: "PENDING", "CANCELLED". The
-    // post-confirm state isn't confirmed yet — adjust the key below (and the
-    // isCancellable / "Confirm Order" checks further down) once known.
     const statusColors = {
         PENDING: "bg-yellow-600",
-        PROCESSING: "bg-green-600",
+        ACCEPTED: "bg-green-600",
         SHIPPED: "bg-blue-600",
-        DELIVERED: "bg-emerald-600",
-        CANCELLED: "bg-red-600",
+        CANCELED: "bg-red-600",
     };
 
     // orderProducts rows are one per physical unit, each carrying its own
@@ -190,7 +191,7 @@ function OrderDetails() {
                 groups.set(key, {
                     productId: key,
                     title: op.product?.title || `Product ${String(key).slice(0, 8)}`,
-                    image: op.product?.bannerImageURL,
+                    image: op.product?.bannerImageURL || op.product?.images?.[0]?.imageURL,
                     units: [],
                 });
             }
@@ -199,18 +200,16 @@ function OrderDetails() {
         return Array.from(groups.values());
     })();
 
-    const handleConfirmOrder = () => acceptOrder();
+    const handleDownloadInvoice = () => downloadInvoice([order.orderId]);
 
-    const handleDownloadInvoice = () => {
-        if (invoiceURL) {
-            window.open(invoiceURL, "_blank");
-        } else {
-            alert("Invoice not available for this order");
-        }
-    };
-
-    const isCancellable = ["PENDING", "PROCESSING"].includes(orderStatus);
-    const isAnyActionPending = isMutating || isCancelling || isDeleting;
+    const isCancellable = ["PENDING", "ACCEPTED", "SHIPPED"].includes(orderStatus);
+    const isAnyActionPending = isAccepting || isShipping || isCancelling || isDeleting;
+    const cancelHint =
+        orderStatus === "PENDING"
+            ? "Cancel this order? Its reserved units go back to stock."
+            : orderStatus === "SHIPPED"
+                ? "Cancel this shipped order? Use this when the parcel came back — its units are put back into stock."
+                : "Cancel this order? Its units are put back into stock.";
 
     return (
         <>
@@ -236,9 +235,11 @@ function OrderDetails() {
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                             <div>
                                 <h1 className="text-3xl sm:text-4xl font-bold mb-2">
-                                    Order #{order?.orderId?.slice(0, 8)}
+                                    Order #{order?.orderId}
                                 </h1>
-                                <p className="text-gray-400">Placed on {formatDateTime(createdAt)}</p>
+                                <p className="text-gray-400">
+                                    Placed on {formatDateTime(createdAt)} · {orderType === "POS" ? "In-store sale" : "Online order"}
+                                </p>
                             </div>
                             <span className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium ${statusColors[orderStatus] || "bg-gray-600"}`}>
                                 {orderStatus}
@@ -257,6 +258,12 @@ function OrderDetails() {
                                 <p><span className="text-gray-400">Name:</span> <span className="text-white ml-2">{customer?.name || "-"}</span></p>
                                 <p><span className="text-gray-400">Phone:</span> <span className="text-white ml-2">{customer?.phone || "-"}</span></p>
                                 <p><span className="text-gray-400">Email:</span> <span className="text-white ml-2">{customer?.email || "-"}</span></p>
+                                {(store || employee) && (
+                                    <p className="flex items-center gap-1 pt-2 text-gray-400">
+                                        <Store className="w-3.5 h-3.5" />
+                                        Sold at {store?.title || "—"}{employee?.name ? ` by ${employee.name}` : ""}
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -350,7 +357,7 @@ function OrderDetails() {
                                 <span className="text-white">{formatMoney(subTotal)}</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-gray-400">Discount</span>
+                                <span className="text-gray-400">Discount{coupon?.code ? ` (coupon ${coupon.code}${sellerNote?.includes("Custom discount") ? " + custom" : ""})` : ""}</span>
                                 <span className="text-green-400">-{formatMoney(discount)}</span>
                             </div>
                             <div className="flex justify-between">
@@ -365,64 +372,62 @@ function OrderDetails() {
                         </div>
                     </div>
 
-                    {/* Action Buttons */}
+                    {/* Action Buttons — only what the current status allows */}
                     <div className="flex flex-col sm:flex-row gap-3">
                         {orderStatus === "PENDING" && (
                             <button
-                                onClick={handleConfirmOrder}
+                                onClick={() => acceptOrder()}
                                 disabled={isAnyActionPending}
-                                className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white font-semibold py-3 px-6 rounded-lg hover:from-green-700 hover:to-green-800 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 disabled:hover:scale-100 flex items-center justify-center gap-2"
+                                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed"
                             >
-                                {isMutating ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                        Confirming...
-                                    </>
-                                ) : (
-                                    "Confirm Order"
-                                )}
+                                {isAccepting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
+                                Accept Order
                             </button>
                         )}
 
-                        {orderStatus !== "PENDING" && invoiceURL && (
+                        {orderStatus === "ACCEPTED" && (
+                            <button
+                                onClick={() => shipOrder()}
+                                disabled={isAnyActionPending}
+                                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed"
+                            >
+                                {isShipping ? <Loader2 className="w-5 h-5 animate-spin" /> : <Truck className="w-5 h-5" />}
+                                Mark as Shipped
+                            </button>
+                        )}
+
+                        {orderStatus !== "CANCELED" && (
                             <button
                                 onClick={handleDownloadInvoice}
-                                disabled={isAnyActionPending}
-                                className="flex-1 flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                disabled={isAnyActionPending || isDownloading}
+                                className="flex-1 flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                <FileText className="w-5 h-5" />
+                                {isDownloading ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
                                 Download Invoice
                             </button>
                         )}
 
                         {isCancellable && (
                             <button
-                                onClick={() => cancelOrder()}
+                                onClick={() => window.confirm(cancelHint) && cancelOrder()}
                                 disabled={isAnyActionPending}
-                                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 hover:scale-105 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed"
                             >
-                                {isCancelling ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                        Cancelling...
-                                    </>
-                                ) : (
-                                    <>
-                                        <XCircle className="w-5 h-5" />
-                                        Cancel Order
-                                    </>
-                                )}
+                                {isCancelling ? <Loader2 className="w-5 h-5 animate-spin" /> : <XCircle className="w-5 h-5" />}
+                                {orderStatus === "SHIPPED" ? "Cancel (Returned)" : "Cancel Order"}
                             </button>
                         )}
 
-                        <button
-                            onClick={() => setShowDeleteModal(true)}
-                            disabled={isAnyActionPending}
-                            className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 hover:scale-105 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed disabled:hover:scale-100"
-                        >
-                            <Trash2 className="w-5 h-5" />
-                            Delete Order
-                        </button>
+                        {orderStatus === "SHIPPED" && (
+                            <button
+                                onClick={() => setShowDeleteModal(true)}
+                                disabled={isAnyActionPending}
+                                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed"
+                            >
+                                <Trash2 className="w-5 h-5" />
+                                Delete Order
+                            </button>
+                        )}
 
                         <button
                             onClick={() => navigate(-1)}

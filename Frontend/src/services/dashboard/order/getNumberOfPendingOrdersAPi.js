@@ -1,13 +1,9 @@
-import axiosInstance from "@/helpers/dashboard/axiosInstance";
+import getOrderSummaryApi from "./getOrderSummaryApi";
 
+// Kept for the dashboard home card: { data: number }
 async function getNumberOfPendingOrdersApi() {
-    try {
-        const response = await axiosInstance.get('/order/pending/count');
-        return response.data;
-    } catch (error) {
-        console.log('Error fetching number of pending orders:', error);
-        throw error;
-    }
+    const summary = await getOrderSummaryApi();
+    return { data: summary?.data?.pendingCount ?? 0 };
 }
 
 export default getNumberOfPendingOrdersApi;

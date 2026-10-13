@@ -2,9 +2,11 @@ import getPendingOrdersApi from "@/services/dashboard/order/getPendingOrdersApi"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { ArrowLeft, Eye, Download, Calendar, Loader2, Check, X, CheckSquare, Square } from "lucide-react";
+import { reportBulkResult } from "@/lib/orderBulk";
+import { ArrowLeft, Eye, Download, Calendar, Loader2, Check, X, CheckSquare, Square, FileText } from "lucide-react";
 import acceptMultiplePendingOrdersApi from "@/services/dashboard/order/acceptMultiplePendingOrdersApi";
 import cancelMultiplePendingOrdersApi from "@/services/dashboard/order/cancelMultiplePendingOrdersApi";
+import useInvoiceDownload from "../useInvoiceDownload";
 
 function PendingOrders() {
   const navigate = useNavigate();
@@ -27,8 +29,8 @@ function PendingOrders() {
   const getGroupedProducts = (order) => {
     const groups = new Map();
     (order.orderProducts || []).forEach((op) => {
-      const key = op.productId?.productId || op.productId; // handles populated or raw FK
-      const name = op.productId?.title || op.productName || `Product ${String(key).slice(0, 8)}`;
+      const key = op.product?.productId || op.productId;
+      const name = [op.product?.title, op.product?.subTitle].filter(Boolean).join(" ") || `Product ${key}`;
       const existing = groups.get(key);
       if (existing) {
         existing.quantity += 1;
@@ -42,7 +44,7 @@ function PendingOrders() {
   // Weight isn't populated on orderProducts in this response; falls back to
   // 0.5kg/unit unless the product relation is populated with specifications.
   const getProductWeight = (op) => {
-    const specs = op.productId?.specifications;
+    const specs = op.product?.specifications;
     if (!specs) return 0.5;
     const weightSpec = specs.find(
       (s) => s.value && (s.value.toLowerCase().includes("kg") || s.value.toLowerCase().includes("weight"))
@@ -158,12 +160,10 @@ function PendingOrders() {
       const ids = Array.from(selectedIds);
       const apiFn = action === "accept" ? acceptMultiplePendingOrdersApi : cancelMultiplePendingOrdersApi;
 
-      await apiFn(ids);
-
-      return ids;
+      return apiFn(ids);
     },
-    onSuccess: () => {
-      setSelectedIds(new Set());
+    onSuccess: (result) => {
+      setSelectedIds(reportBulkResult(result));
       queryClient.invalidateQueries({ queryKey: ["pendingOrdersData"] });
     },
     onError: (error) => {
@@ -171,6 +171,9 @@ function PendingOrders() {
       queryClient.invalidateQueries({ queryKey: ["pendingOrdersData"] });
     },
   });
+
+  // Invoices are generated on demand; several orders come back as one PDF.
+  const { download: downloadInvoices, isDownloading } = useInvoiceDownload();
 
   const handleAcceptSelected = () => {
     if (selectedIds.size === 0) return;
@@ -180,7 +183,7 @@ function PendingOrders() {
 
   const handleCancelSelected = () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`Cancel ${selectedIds.size} order(s)? This cannot be undone.`)) return;
+    if (!window.confirm(`Cancel ${selectedIds.size} order(s)? Their reserved units go back to stock.`)) return;
     bulkAction("cancel");
   };
 
@@ -262,6 +265,14 @@ function PendingOrders() {
             </p>
             <div className="flex gap-3">
               <button
+                onClick={() => downloadInvoices(Array.from(selectedIds))}
+                disabled={isDownloading}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors duration-200 font-medium"
+              >
+                {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                Invoices ({selectedIds.size})
+              </button>
+              <button
                 onClick={handleAcceptSelected}
                 disabled={isUpdating}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors duration-200 font-medium"
@@ -339,7 +350,7 @@ function PendingOrders() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="text-lg font-semibold text-white mb-1">
-                            Order #{order.orderId.slice(0, 8)}
+                            Order #{order.orderId}
                           </h3>
                           <p className="text-sm text-gray-400 mb-1">
                             {order.customer?.name} • {phoneFix(order.customer?.phone)}

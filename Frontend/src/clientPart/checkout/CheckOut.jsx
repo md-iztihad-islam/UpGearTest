@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, CreditCard, Truck, ShoppingBag, Loader2, X, MapPin } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -16,10 +16,10 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useMutation } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import addOrderApi from "@/services/clientPart/order/addOrderApi";
-import getCouponByCodeApi from "@/services/dashboard/coupon/getCouponByCodeApi";
-import updateCouponApi from "@/services/dashboard/coupon/updateCouponApi";
+import quoteOrderApi from "@/services/clientPart/order/quoteOrderApi";
+import { apiErrorMessage } from "@/lib/apiError";
 
 // Only "cod" is actually offered in the UI right now, but the schema
 // keeps "bkash" reserved for when it's re-enabled.
@@ -52,10 +52,11 @@ const checkoutSchema = z.object({
 const Checkout = () => {
   const navigate = useNavigate();
   const { cartItems, clearCart } = cartStore();
-  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [appliedCouponCode, setAppliedCouponCode] = useState("");
   const [couponError, setCouponError] = useState("");
   const [couponInput, setCouponInput] = useState("");
   const [isCouponApplying, setIsCouponApplying] = useState(false);
+  const [orderError, setOrderError] = useState("");
 
   const form = useForm({
     resolver: zodResolver(checkoutSchema),
@@ -75,30 +76,54 @@ const Checkout = () => {
   const insideDhaka = form.watch("insideDhaka");
   const paymentMethod = form.watch("paymentMethod");
 
-  const subtotal =
-    cartItems?.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 0), 0) || 0;
+  // What the server needs: just product ids and quantities. Prices, delivery
+  // and coupon discount are all worked out on the server.
+  const items = useMemo(
+    () =>
+      (cartItems || [])
+        .map((item) => ({ productId: item.productId || item.id, quantity: item.quantity || 1 }))
+        .filter((item) => item.productId),
+    [cartItems]
+  );
 
-  // Shipping is the HIGHEST per-product charge in the cart, not a sum —
-  // matches how the backend has no shipping-calculation logic of its own;
-  // whatever we send as deliveryCharge is trusted as-is by addOrderService.
-  const calculateShippingCost = () => {
-    if (!cartItems?.length) return 0;
-    const shippingCosts = cartItems.map((item) =>
-      insideDhaka ? item.insideDhakaCharge : item.outsideDhakaCharge
-    );
-    return Math.max(...shippingCosts);
-  };
-
-  const shippingCost = calculateShippingCost();
-  const couponDiscount = appliedCoupon?.discount || 0;
-  const total = Math.max(0, subtotal - couponDiscount + shippingCost);
-
-  const { mutate: applyCouponMutation } = useMutation({
-    mutationFn: ({ couponId, updatedData }) => updateCouponApi(couponId, updatedData),
+  // Live price breakdown from the server — the exact numbers that will be
+  // charged. If the applied coupon stops being valid (e.g. the cart drops
+  // below its minimum), the cart is re-priced without it and the reason shown.
+  const {
+    data: quoteResult,
+    error: quoteError,
+    isFetching: isQuoting,
+  } = useQuery({
+    queryKey: ["checkoutQuote", items, insideDhaka, appliedCouponCode],
+    queryFn: async () => {
+      const input = { channel: "ONLINE", items, insideDhaka };
+      try {
+        const response = await quoteOrderApi({ ...input, couponCode: appliedCouponCode || undefined });
+        return { quote: response.data, couponProblem: "" };
+      } catch (error) {
+        if (!appliedCouponCode || error?.response?.data?.field !== "coupon") throw error;
+        const response = await quoteOrderApi(input);
+        return { quote: response.data, couponProblem: apiErrorMessage(error) };
+      }
+    },
+    enabled: items.length > 0,
+    placeholderData: keepPreviousData,
+    retry: false,
   });
+  const quote = quoteResult?.quote;
+  const activeCoupon = quote?.coupon;
+  const blockingQuoteError = quoteError ? apiErrorMessage(quoteError) : "";
+
+  const localSubtotal = (cartItems || []).reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 0), 0);
+  const subtotal = quote?.subTotal ?? localSubtotal;
+  const shippingCost = quote?.deliveryCharge ?? 0;
+  const couponDiscount = quote?.couponDiscount ?? 0;
+  const total = quote?.totalBill ?? localSubtotal;
+  const lineByProduct = new Map((quote?.lines || []).map((line) => [line.productId, line]));
+  const stockProblems = (quote?.lines || []).filter((line) => line.quantity > line.available);
 
   const handleRemoveCoupon = () => {
-    setAppliedCoupon(null);
+    setAppliedCouponCode("");
     setCouponInput("");
     setCouponError("");
   };
@@ -112,30 +137,13 @@ const Checkout = () => {
 
     setIsCouponApplying(true);
     setCouponError("");
-
     try {
-      const response = await getCouponByCodeApi(code);
-      const coupon = response?.data;
-
-      if (!coupon) throw new Error("Coupon not found");
-      if (!coupon.isActive) throw new Error("Coupon is inactive");
-      if (coupon.expiryDate && new Date(coupon.expiryDate) < new Date())
-        throw new Error("Coupon has expired");
-      if (coupon.maxUsageLimit && coupon.usedCount >= coupon.maxUsageLimit)
-        throw new Error("Coupon usage limit reached");
-      if (coupon.minOrderAmount && subtotal < coupon.minOrderAmount)
-        throw new Error(`Minimum order amount of ৳${coupon.minOrderAmount} required`);
-
-      let discount = coupon.discountPCT ? (subtotal * coupon.discountPCT) / 100 : coupon.discountAMT;
-      if (coupon.maxDiscountAmt) discount = Math.min(discount, coupon.maxDiscountAmt);
-      discount = Math.round(Math.min(discount, subtotal));
-
-      setAppliedCoupon({ code: coupon.code, discount, couponId: coupon.couponId });
-      window.alert(`Saved ৳${discount.toLocaleString()}`, "success");
+      // Validate against the server with the current cart before applying.
+      const response = await quoteOrderApi({ channel: "ONLINE", items, insideDhaka, couponCode: code });
+      setAppliedCouponCode(code);
+      window.showToast?.(`Coupon applied — you save ৳${response.data.couponDiscount.toLocaleString()}`, "success");
     } catch (error) {
-      setCouponError(error.message);
-      setAppliedCoupon(null);
-      window.alert(error.message, "error");
+      setCouponError(apiErrorMessage(error, "Couldn't apply this coupon"));
     } finally {
       setIsCouponApplying(false);
     }
@@ -143,77 +151,56 @@ const Checkout = () => {
 
   const { mutate: placeOrder, isPending: isPlacingOrder } = useMutation({
     mutationFn: (orderData) => addOrderApi(orderData),
-    onSuccess: (response) => {
-      // Controller shape: { message, order: { orderData, products } }
-      const orderPayload = response?.data?.order;
-
-      if (appliedCoupon?.couponId) {
-        applyCouponMutation({
-          couponId: appliedCoupon.couponId,
-          updatedData: {
-            usedCount: (appliedCoupon.usedCount || 0) + 1,
-          },
-        });
+    onSuccess: (response, orderData) => {
+      const orderId = response?.data?.orderId;
+      // Lets the confirmation page show the order without asking for the phone again.
+      try {
+        sessionStorage.setItem("lastOrder", JSON.stringify({ orderId, phone: orderData.customerPhone }));
+      } catch {
+        // storage unavailable — the confirmation page will ask for the phone
       }
-
-      const orderId = orderPayload?.orderData?.orderId;
-      window.alert("Order placed successfully!", "success");
       clearCart();
-      setTimeout(() => navigate(`/order-confirmation/${orderId}`), 1500);
+      navigate(`/order-confirmation/${orderId}`, { state: { phone: orderData.customerPhone } });
     },
     onError: (error) => {
-      window.alert(error.response?.data?.message || "Failed to place order", "error");
+      const message = apiErrorMessage(error, "Failed to place order, please try again");
+      if (error?.response?.data?.field === "coupon") handleRemoveCoupon();
+      setOrderError(message);
+      window.showToast?.(message, "error");
     },
   });
 
   const onSubmit = (data) => {
-    // Backend reserves stock/serial numbers one unit at a time
-    // (reserveStockQuantityRepository(productId, 1, tx)), so quantity > 1
-    // must be flattened into one OrderProduct row per unit.
-    const products = [];
-    cartItems.forEach((item) => {
-      const qty = item.quantity || 1;
-      for (let i = 0; i < qty; i++) {
-        products.push({
-          productId: item._id || item.id,
-          serialNumber: null, // let the backend assign a reserved serial
-          originalPrice: item.mainPrice || item.price,
-          discountAmount: item.discountAmount || 0,
-          purchasePrice: item.price,
-        });
-      }
-    });
-
-    // Maps 1:1 onto orderReqData consumed by addOrderService.
-    // storeId / employeeId / invoiceURL are still omitted since this is an
-    // ONLINE customer-facing order, not a POS/dashboard one. transactionId
-    // is only meaningful for bKash; deliveryNote/sellerNote are free text
-    // the customer can leave for the courier / seller.
-    const orderData = {
-      customerName: data.customerName,
+    setOrderError("");
+    placeOrder({
+      customerName: data.customerName.trim(),
       customerEmail: data.customerEmail?.trim() || null,
       customerPhone: data.customerPhone,
+      deliveryAddress: data.deliverAddress.trim(),
       insideDhaka: data.insideDhaka,
-      deliveryAddress: data.deliverAddress,
       paymentMethod: data.paymentMethod,
-      subTotal: subtotal,
-      deliveryCharge: shippingCost,
-      discount: couponDiscount,
-      totalBill: total,
-      orderStatus: "PENDING",
-      couponId: appliedCoupon?.couponId || null,
-      paymentStatus: "UNPAID",
-      paidAmount: 0,
-      dueAmount: total,
-      orderType: "ONLINE",
       transactionId: data.paymentMethod === "bkash" ? data.bkashTransactionId?.trim() : null,
       deliveryNote: data.deliveryNote?.trim() || null,
       sellerNote: data.sellerNote?.trim() || null,
-      products,
-    };
-
-    placeOrder(orderData);
+      couponCode: activeCoupon?.code,
+      items,
+    });
   };
+
+  if (!items.length) {
+    return (
+      <div className="min-h-screen bg-black text-gray-100 flex items-center justify-center px-4">
+        <div className="text-center space-y-4">
+          <ShoppingBag className="h-12 w-12 text-gray-600 mx-auto" />
+          <h1 className="text-2xl font-bold">Your cart is empty</h1>
+          <p className="text-gray-400">Add something to your cart to check out.</p>
+          <Button onClick={() => navigate("/all-products")} className="bg-white text-black hover:bg-gray-200">
+            Browse products
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-gray-100">
@@ -458,25 +445,42 @@ const Checkout = () => {
                 <ShoppingBag className="h-5 w-5" /> Order Summary
               </h2>
               <div className="max-h-60 overflow-y-auto space-y-4 mb-6 pr-2">
-                {cartItems.map((item) => (
-                  <div key={item._id} className="flex gap-3 text-sm">
-                    <img src={item.image} className="h-12 w-12 rounded object-cover bg-gray-800" alt="" />
-                    <div className="flex-1">
-                      <p className="line-clamp-1 font-medium">{item.title}</p>
-                      <p className="text-gray-500">Qty: {item.quantity}</p>
+                {cartItems.map((item) => {
+                  const line = lineByProduct.get(item.productId || item.id);
+                  const short = line && line.quantity > line.available;
+                  return (
+                    <div key={item.productId || item.id} className="flex gap-3 text-sm">
+                      <img src={item.image} className="h-12 w-12 rounded object-cover bg-gray-800" alt="" />
+                      <div className="flex-1 min-w-0">
+                        <p className="line-clamp-1 font-medium">{item.title}</p>
+                        <p className="text-gray-500">Qty: {item.quantity}</p>
+                        {short && (
+                          <p className="text-xs text-red-400">
+                            {line.available > 0 ? `Only ${line.available} left` : "Out of stock"}
+                          </p>
+                        )}
+                      </div>
+                      <p className="font-semibold">
+                        ৳{(line?.lineTotal ?? (item.price || 0) * item.quantity).toLocaleString()}
+                      </p>
                     </div>
-                    <p className="font-semibold">৳{(item.price * item.quantity).toLocaleString()}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="space-y-3 mb-6">
-                {!appliedCoupon ? (
+                {!activeCoupon ? (
                   <div className="flex gap-2">
                     <Input
                       placeholder="Coupon code"
                       value={couponInput}
                       onChange={(e) => setCouponInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleApplyCoupon();
+                        }
+                      }}
                       className="bg-gray-800 border-gray-700 h-9"
                     />
                     <Button size="sm" onClick={handleApplyCoupon} disabled={isCouponApplying} className="bg-blue-600">
@@ -485,25 +489,27 @@ const Checkout = () => {
                   </div>
                 ) : (
                   <div className="flex justify-between items-center text-xs bg-green-500/10 border border-green-500/30 p-2 rounded">
-                    <span className="text-green-500 font-bold">{appliedCoupon.code} Applied!</span>
+                    <span className="text-green-500 font-bold">{activeCoupon.code} Applied!</span>
                     <X className="h-4 w-4 cursor-pointer text-gray-500" onClick={handleRemoveCoupon} />
                   </div>
                 )}
-                {couponError && <p className="text-xs text-red-400">{couponError}</p>}
+                {(couponError || quoteResult?.couponProblem) && (
+                  <p className="text-xs text-red-400">{couponError || quoteResult.couponProblem}</p>
+                )}
               </div>
 
-              <div className="space-y-2 border-t border-gray-800 pt-4 text-sm">
+              <div className={`space-y-2 border-t border-gray-800 pt-4 text-sm transition-opacity ${isQuoting ? "opacity-60" : ""}`}>
                 <div className="flex justify-between">
                   <span>Subtotal</span>
                   <span>৳{subtotal.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Shipping</span>
-                  <span>৳{shippingCost.toLocaleString()}</span>
+                  <span>Shipping ({insideDhaka ? "inside" : "outside"} Dhaka)</span>
+                  <span>{quote ? `৳${shippingCost.toLocaleString()}` : "—"}</span>
                 </div>
-                {appliedCoupon && (
+                {couponDiscount > 0 && (
                   <div className="flex justify-between text-green-500">
-                    <span>Discount</span>
+                    <span>Coupon discount</span>
                     <span>-৳{couponDiscount.toLocaleString()}</span>
                   </div>
                 )}
@@ -513,9 +519,17 @@ const Checkout = () => {
                 </div>
               </div>
 
+              {(blockingQuoteError || orderError || stockProblems.length > 0) && (
+                <p className="mt-4 text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                  {blockingQuoteError ||
+                    orderError ||
+                    "Some items don't have enough stock. Reduce the quantity in your cart to continue."}
+                </p>
+              )}
+
               <Button
                 onClick={form.handleSubmit(onSubmit)}
-                disabled={isPlacingOrder}
+                disabled={isPlacingOrder || !quote || !!blockingQuoteError || stockProblems.length > 0}
                 className="w-full mt-6 h-12 bg-blue-600 hover:bg-blue-700 text-lg font-bold"
               >
                 {isPlacingOrder ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : "Place Order"}

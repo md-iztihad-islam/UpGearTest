@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { ShoppingCart, Menu, Search, User, X, Heart } from "lucide-react";
+import { ShoppingCart, Menu, Search, X, Heart, PackageSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -189,13 +189,8 @@ function Navbar() {
 
     const subCategories = subCategoryData?.data || [];
 
-    const handleAccountClick = () => {
-        if (user) {
-            navigate("/customer/dashboard");
-        } else {
-            navigate("/customer/signin");
-        }
-    };
+    // Customers track orders with their order ID + phone; no account needed.
+    const handleAccountClick = () => navigate("/track-order");
 
     return (
         <nav className="sticky top-0 z-50 w-full backdrop-blur-md border-b border-white/10" style={{ backgroundColor: BG }}>
@@ -293,8 +288,8 @@ function Navbar() {
                             onClick={handleAccountClick}
                             className="flex items-center gap-1.5 text-white/90 hover:text-white transition-colors p-1 whitespace-nowrap"
                         >
-                            <User className="h-[18px] w-[18px]" />
-                            <span className="text-sm font-medium">{user ? "Account" : "Sign Up"}</span>
+                            <PackageSearch className="h-[18px] w-[18px]" />
+                            <span className="text-sm font-medium">Track Order</span>
                         </button>
                     </div>
                 </div>
@@ -411,8 +406,8 @@ const MobileMenuContent = ({
                     className="w-full gap-2 bg-white text-black hover:bg-gray-200 h-11 text-sm font-medium"
                     onClick={() => { onAccountClick(); onClose(); }}
                 >
-                    <User className="h-4 w-4" />
-                    {user ? "Account" : "Sign Up"}
+                    <PackageSearch className="h-4 w-4" />
+                    Track Order
                 </Button>
             </div>
 

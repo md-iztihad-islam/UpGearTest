@@ -32,13 +32,6 @@ function Orders() {
             icon: XCircle,
             description: "View cancelled orders",
             color: "from-red-600 to-red-700"
-        },
-        {
-            path: "returned-orders",
-            title: "Returned Orders",
-            icon: RotateCcw,
-            description: "View returned orders",
-            color: "from-purple-600 to-purple-700"
         }
     ];
 
