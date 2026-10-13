@@ -2,8 +2,7 @@ import NewArraivals from "./NewArraivals/NewArraivals";
 import HotDeals from "./hotDeals/HotDeals";
 import Discounted from "./discounted/Discounted";
 import CarouselComponent from "@/components/clientPart/carousel/Carousel";
-import Subcategories from "./components/Subcategories";
-import SubCategories from "./subCategories/SubCategories";
+import SubCategorySlider from "./subCategories/SubCategorySlider";
 import TrustFeatures from "@/components/clientPart/beforeFooter/TrustFeatures";
 
 function Home() {
@@ -14,23 +13,19 @@ function Home() {
                 <CarouselComponent />
             </section>
 
-            <section className="sm:w-hidden">
-                <Subcategories />
-            </section>
+            {/* Sub-category slider — square image tiles */}
+            <SubCategorySlider />
 
-            {/* Featured Sections */}
+            {/* Product sections — horizontal scrollers, up to 8 products each */}
             <main className="">
-                <section id="sub-categories">
-                    <SubCategories />
-                </section>
                 <section id="new-arrivals">
                     <NewArraivals />
                 </section>
-                
-                <section id="hot-deals" className="">
+
+                <section id="hot-deals">
                     <HotDeals />
                 </section>
-                
+
                 <section id="discounted">
                     <Discounted />
                 </section>

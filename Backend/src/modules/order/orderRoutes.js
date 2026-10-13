@@ -1,5 +1,5 @@
 import express from 'express';
-import { acceptMultiplePendingOrdersController, acceptOrderController, addOrderController, cancelMultipleAcceptedOrdersController, cancelMultiplePendingOrdersController, cancelMultipleShippedOrdersController, cancelOrderController, getAllAcceptedOrdersController, getAllCanceledOrdersController, getAllPendingOrdersController, getAllShippedOrdersController, getOrderByIdController, shipMultipleAcceptedOrdersController, shipOrderController } from './orderControllers.js';
+import { acceptMultiplePendingOrdersController, acceptOrderController, addOrderController, cancelMultipleAcceptedOrdersController, cancelMultiplePendingOrdersController, cancelMultipleShippedOrdersController, cancelOrderController, deleteMultipleShippedOrdersController, deleteShippedOrderController, getAllAcceptedOrdersController, getAllCanceledOrdersController, getAllPendingOrdersController, getAllShippedOrdersController, getOrderByIdController, shipMultipleAcceptedOrdersController, shipOrderController } from './orderControllers.js';
 
 const router = express.Router();
 
@@ -20,5 +20,9 @@ router.patch('/cancel-multiple-pending-orders', cancelMultiplePendingOrdersContr
 router.patch('/ship-multiple-accepted-orders', shipMultipleAcceptedOrdersController)
 router.patch('/cancel-multiple-accepted-orders', cancelMultipleAcceptedOrdersController)
 router.patch('/cancel-multiple-shipped-orders', cancelMultipleShippedOrdersController)
+
+// Deleting shipped orders — removes the order record only, stock is untouched
+router.delete('/delete-shipped-order/:orderId', deleteShippedOrderController)
+router.post('/delete-multiple-shipped-orders', deleteMultipleShippedOrdersController)
 
 export default router;

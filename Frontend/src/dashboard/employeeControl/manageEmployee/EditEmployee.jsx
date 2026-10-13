@@ -21,7 +21,6 @@ function EditEmployee() {
     const [storeId, setStoreId] = useState("");
     const [status, setStatus] = useState("");
     const [role, setRole] = useState("");
-    // const [orderIndex, setOrderIndex] = useState(0);
     const [imageFile, setImageFile] = useState(null);
     const [existingImageURL, setExistingImageURL] = useState("");
 

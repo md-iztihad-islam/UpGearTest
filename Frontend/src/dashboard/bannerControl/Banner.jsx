@@ -146,11 +146,6 @@ function BannerRow({ banner, isActive, onToggle, onDelete, isTogglePending, isDe
                                 {banner.title}
                             </h3>
                             <StatusBadge active={isActive} />
-                            {banner.orderIndex !== undefined && (
-                                <span className="text-[0.58rem] text-gray-600 font-mono bg-white/5 px-1 py-px rounded flex-shrink-0">
-                                    #{banner.orderIndex}
-                                </span>
-                            )}
                         </div>
 
                         {banner.subTitle && (

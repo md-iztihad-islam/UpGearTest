@@ -6,6 +6,7 @@ import {
     ShoppingBag, ChevronRight, Loader2, AlertCircle, UserX
 } from "lucide-react";
 import getAllCustomersApi from "@/services/dashboard/customer/getAllCustomerApi";
+import { matchesSearch } from "@/lib/search";
 
 // --------------- Stat Card ---------------
 function StatCard({ icon: Icon, label, value, color }) {
@@ -79,14 +80,9 @@ function CustomerControl() {
 
     const customers = data?.customers || [];
 
-    const filtered = customers.filter((c) => {
-        const q = search.toLowerCase();
-        return (
-            c.customerName?.toLowerCase().includes(q) ||
-            c.customerPhone?.includes(q) ||
-            c.customerEmail?.toLowerCase().includes(q)
-        );
-    });
+    const filtered = customers.filter((c) =>
+        matchesSearch(search, [c.customerName, c.customerPhone, c.customerEmail])
+    );
 
     const totalOrders = customers.reduce((sum, c) => sum + (c.numberOfOrders || 0), 0);
 

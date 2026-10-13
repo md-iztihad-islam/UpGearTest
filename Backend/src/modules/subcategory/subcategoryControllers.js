@@ -1,3 +1,4 @@
+import { R2_PUBLIC_URL } from "../../config/serverConfig.js";
 import {
     addSubCategoryService,
     deleteSubCategoryByIdService,
@@ -7,9 +8,19 @@ import {
     getSubCategoriesByCategoryIdService,
 } from "./subcategoryServices.js";
 
+const SUBCATEGORY_FIELDS = ["categoryId", "title", "slug", "metaTitle", "metaDescription"];
+
+// Keep only real SubCategory columns from the (possibly multipart) body.
+const pickSubCategoryFields = (body = {}) =>
+    Object.fromEntries(Object.entries(body).filter(([key]) => SUBCATEGORY_FIELDS.includes(key)));
+
+const uploadedImageURL = (file) => (file?.key ? `${R2_PUBLIC_URL}/${file.key}` : undefined);
+
 export const addSubCategoryController = async (req, res) => {
     try {
-        const subCategoryData = { ...req.body };
+        const subCategoryData = pickSubCategoryFields(req.body);
+        const imageURL = uploadedImageURL(req.file);
+        if (imageURL) subCategoryData.imageURL = imageURL;
 
         if (!subCategoryData.categoryId) {
             return res.status(400).json({
@@ -115,7 +126,15 @@ export const getSubCategoryByIdController = async (req, res) => {
 export const updateSubCategoryByIdController = async (req, res) => {
     try {
         const subCategoryId = req.params.subCategoryId;
-        const updateData = { ...req.body };
+        const updateData = pickSubCategoryFields(req.body);
+
+        // A new upload replaces the image; removeImage=true clears it.
+        const imageURL = uploadedImageURL(req.file);
+        if (imageURL) {
+            updateData.imageURL = imageURL;
+        } else if (req.body?.removeImage === "true" || req.body?.removeImage === true) {
+            updateData.imageURL = null;
+        }
 
         if (!subCategoryId) {
             return res.status(400).json({
@@ -124,16 +143,6 @@ export const updateSubCategoryByIdController = async (req, res) => {
             });
         }
 
-        if (updateData.orderIndex !== undefined) {
-            const parsedOrderIndex = Number.parseInt(updateData.orderIndex, 10);
-            if (Number.isNaN(parsedOrderIndex)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "SubCategory orderIndex must be a valid number",
-                });
-            }
-            updateData.orderIndex = parsedOrderIndex;
-        }
 
         const response = await updateSubCategoryByIdService(subCategoryId, updateData);
 

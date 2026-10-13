@@ -12,13 +12,13 @@ function Specification() {
             description: "Create new specification",
             color: "from-blue-600 to-blue-700"
         },
-        // {
-        //     path: "manage-specification",
-        //     title: "Manage Specification",
-        //     icon: FileText,
-        //     description: "View and edit specifications",
-        //     color: "from-purple-600 to-purple-700"
-        // }
+        {
+            path: "manage-specification",
+            title: "Manage Specification",
+            icon: FileText,
+            description: "View and edit specifications",
+            color: "from-purple-600 to-purple-700"
+        }
     ];
 
     return (

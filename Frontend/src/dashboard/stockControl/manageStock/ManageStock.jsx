@@ -7,6 +7,7 @@ import {
     TrendingDown, AlertTriangle, CheckCircle,
 } from "lucide-react";
 import getAllStockApi from "@/services/dashboard/stock/getAllStockApi";
+import { matchesSearch } from "@/lib/search";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -301,13 +302,8 @@ function ManageStock() {
     const stocks = allStockData?.data || [];
 
     const filteredStocks = useMemo(() => {
-        if (!searchQuery.trim()) return stocks;
-        const q = searchQuery.toLowerCase();
         return stocks.filter((s) =>
-            s.stockId?.toLowerCase().includes(q) ||
-            s.productId?.toLowerCase().includes(q) ||
-            s.product?.title?.toLowerCase().includes(q) ||
-            s.status?.toLowerCase().includes(q)
+            matchesSearch(searchQuery, [s.stockId, s.productId, s.product?.title, s.product?.subTitle, s.status])
         );
     }, [stocks, searchQuery]);
 

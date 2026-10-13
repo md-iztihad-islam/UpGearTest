@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Search, X, TrendingUp, ChevronRight, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -6,6 +7,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { debounce } from "lodash";
 import searchProductsApi from "@/services/clientPart/search/searchProductsApi";
+import getAllSubCategoriesApi from "@/services/dashboard/category/getAllSubCategoriesApi";
+
+const MIN_QUERY_LENGTH = 2;
+const productImage = (product) => product.bannerImageURL || product.images?.[0]?.imageURL;
 
 const SearchInput = ({ placeholder = "Search for products...", className = "", autoFocus = false }) => {
     const navigate = useNavigate();
@@ -18,6 +23,17 @@ const SearchInput = ({ placeholder = "Search for products...", className = "", a
     
     const searchRef = useRef(null);
     const dropdownRef = useRef(null);
+    // Only the latest request may update the results, so a slow earlier
+    // response can't overwrite newer ones.
+    const latestRequestRef = useRef(0);
+
+    // Real categories instead of a hard-coded "popular searches" list
+    const { data: subCategoryData } = useQuery({
+        queryKey: ["subcategories"],
+        queryFn: () => getAllSubCategoriesApi(),
+        staleTime: 5 * 60 * 1000,
+    });
+    const suggestedTerms = (subCategoryData?.data || []).map((sub) => sub.title).slice(0, 8);
 
     // Load recent searches
     useEffect(() => {
@@ -41,27 +57,33 @@ const SearchInput = ({ placeholder = "Search for products...", className = "", a
     }, []);
 
     // Debounced search
-    const debouncedSearch = useCallback(
-        debounce(async (query) => {
-            if (!query.trim() || query.length < 2) {
-                setSearchResults([]);
-                setIsSearching(false);
-                return;
-            }
+    const debouncedSearch = useMemo(
+        () =>
+            debounce(async (query) => {
+                const requestId = ++latestRequestRef.current;
+                if (query.trim().length < MIN_QUERY_LENGTH) {
+                    setSearchResults([]);
+                    setIsSearching(false);
+                    return;
+                }
 
-            setIsSearching(true);
-            try {
-                const response = await searchProductsApi({ query, limit: 8 });
-                setSearchResults(response.data?.products || []);
-            } catch (error) {
-                console.error("Search error:", error);
-                setSearchResults([]);
-            } finally {
-                setIsSearching(false);
-            }
-        }, 300),
+                setIsSearching(true);
+                try {
+                    const response = await searchProductsApi({ query, limit: 8 });
+                    if (requestId !== latestRequestRef.current) return;
+                    setSearchResults(response?.data?.products || []);
+                } catch (error) {
+                    if (requestId !== latestRequestRef.current) return;
+                    console.error("Search error:", error);
+                    setSearchResults([]);
+                } finally {
+                    if (requestId === latestRequestRef.current) setIsSearching(false);
+                }
+            }, 300),
         []
     );
+
+    useEffect(() => () => debouncedSearch.cancel(), [debouncedSearch]);
 
     const handleInputChange = (e) => {
         const value = e.target.value;
@@ -69,9 +91,12 @@ const SearchInput = ({ placeholder = "Search for products...", className = "", a
         setShowDropdown(true);
         setHighlightedIndex(-1);
         
-        if (value.trim().length >= 2) {
+        if (value.trim().length >= MIN_QUERY_LENGTH) {
+            setIsSearching(true);
             debouncedSearch(value);
         } else {
+            debouncedSearch.cancel();
+            latestRequestRef.current++;
             setSearchResults([]);
             setIsSearching(false);
         }
@@ -92,7 +117,7 @@ const SearchInput = ({ placeholder = "Search for products...", className = "", a
     const handleSearchSubmit = (query = searchQuery) => {
         if (query.trim()) {
             saveRecentSearch(query);
-            navigate(`/search?q=${encodeURIComponent(query)}`);
+            navigate(`/search?q=${encodeURIComponent(query.trim())}`);
             setSearchQuery("");
             setShowDropdown(false);
             setSearchResults([]);
@@ -100,7 +125,7 @@ const SearchInput = ({ placeholder = "Search for products...", className = "", a
     };
 
     const navigateToProduct = (product) => {
-        navigate(`/products/${product._id}`);
+        navigate(`/products/${product.slug}`);
         saveRecentSearch(product.title);
         setSearchQuery("");
         setShowDropdown(false);
@@ -145,6 +170,8 @@ const SearchInput = ({ placeholder = "Search for products...", className = "", a
     };
 
     const clearSearch = () => {
+        debouncedSearch.cancel();
+        latestRequestRef.current++;
         setSearchQuery("");
         setSearchResults([]);
         setShowDropdown(false);
@@ -207,7 +234,7 @@ const SearchInput = ({ placeholder = "Search for products...", className = "", a
                         </div>
                         {searchResults.map((product, index) => (
                             <button
-                                key={product._id}
+                                key={product.productId}
                                 onClick={() => navigateToProduct(product)}
                                 className={`w-full flex items-center gap-2 sm:gap-3 p-2 sm:p-3 hover:bg-gray-800/70 active:bg-gray-800 transition-colors border-b border-gray-800/50 last:border-0 ${
                                     index === highlightedIndex ? 'bg-gray-800' : ''
@@ -215,7 +242,7 @@ const SearchInput = ({ placeholder = "Search for products...", className = "", a
                             >
                             <Avatar className="h-12 w-12 sm:h-14 sm:w-14 rounded-md border border-gray-700 flex-shrink-0">
                                 <AvatarImage 
-                                    src={product.bannerImage || product.images?.[0]} 
+                                    src={productImage(product)} 
                                     alt={product.title}
                                     className="object-cover"
                                 />
@@ -235,15 +262,15 @@ const SearchInput = ({ placeholder = "Search for products...", className = "", a
                         )}
                                 <div className="flex items-center gap-1.5 sm:gap-2 mt-1">
                                 <span className="text-xs sm:text-sm font-semibold text-white">
-                                    {formatPrice(product.finalPrice || product.mainPrice)}
+                                    {formatPrice(Number(product.price) || 0)}
                                 </span>
-                                {product.discountAmount > 0 && (
+                                {Number(product.mainPrice) > Number(product.price) && (
                                     <>
                                     <span className="text-xs text-gray-500 line-through">
-                                        {formatPrice(product.mainPrice)}
+                                        {formatPrice(Number(product.mainPrice))}
                                     </span>
-                                    <Badge className="text-xs px-1 py-0 h-4 sm:h-5 bg-red-600 text-white border-0">
-                                        -{Math.round((product.discountAmount / product.mainPrice) * 100)}%
+                                    <Badge className="text-xs px-1 py-0 h-4 sm:h-5 bg-green-600 text-white border-0">
+                                        -{Math.round(((product.mainPrice - product.price) / product.mainPrice) * 100)}%
                                     </Badge>
                                     </>
                                 )}
@@ -267,7 +294,7 @@ const SearchInput = ({ placeholder = "Search for products...", className = "", a
                     )}
 
                     {/* No Results */}
-                    {!isSearching && searchQuery.length >= 2 && searchResults.length === 0 && (
+                    {!isSearching && searchQuery.trim().length >= MIN_QUERY_LENGTH && searchResults.length === 0 && (
                         <div className="p-6 sm:p-8 text-center">
                         <Search className="h-8 w-8 sm:h-10 sm:w-10 mx-auto text-gray-600 mb-2" />
                         <p className="text-xs sm:text-sm text-gray-400">No products found for "{searchQuery}"</p>
@@ -315,18 +342,19 @@ const SearchInput = ({ placeholder = "Search for products...", className = "", a
                         </div>
                     )}
 
-                    {/* Popular Searches (Empty State) */}
-                    {!isSearching && !searchQuery && recentSearches.length === 0 && (
+                    {/* Category suggestions (Empty State) */}
+                    {!isSearching && !searchQuery && recentSearches.length === 0 && suggestedTerms.length > 0 && (
                         <div className="p-3 sm:p-4">
                         <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2 sm:mb-3">
-                            Popular Searches
+                            Try searching
                         </p>
                         <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                            {["Keyboard", "Mouse", "Headphones", "Monitor", "Laptop", "Gaming"].map((term) => (
+                            {suggestedTerms.map((term) => (
                             <button
                                 key={term}
                                 onClick={() => {
                                 setSearchQuery(term);
+                                setIsSearching(true);
                                 debouncedSearch(term);
                                 }}
                                 className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-medium rounded-full bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white active:bg-gray-600 transition-colors"

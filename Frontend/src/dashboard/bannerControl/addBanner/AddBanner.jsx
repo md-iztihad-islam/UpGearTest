@@ -11,7 +11,6 @@ import {
     Loader2,
     AlignLeft,
     MousePointer,
-    Hash,
     Calendar,
     ToggleLeft,
     X,
@@ -89,10 +88,6 @@ function validate(fields) {
         errors.status = "Status is required.";
     }
 
-    if (fields.orderIndex === "" || isNaN(Number(fields.orderIndex)) || Number(fields.orderIndex) < 0) {
-        errors.orderIndex = "Order index must be a non-negative number.";
-    }
-
     if (!fields.displayType) {
         errors.displayType = "Display type is required.";
     }
@@ -114,7 +109,6 @@ function AddBanner() {
     const [imageURL, setImageURL] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
     const [status, setStatus] = useState("active");
-    const [orderIndex, setOrderIndex] = useState("0");
     const [displayType, setDisplayType] = useState("desktop");
     const [startAt, setStartAt] = useState("");
     const [endAt, setEndAt] = useState("");
@@ -125,7 +119,7 @@ function AddBanner() {
 
     const fields = {
         title, subTitle, link, buttonText, imageURL,
-        status, orderIndex, displayType, startAt, endAt,
+        status, displayType, startAt, endAt,
     };
 
     const { mutate, isPending, isSuccess, isError, reset } = useMutation({
@@ -138,7 +132,6 @@ function AddBanner() {
             setImageURL(null);
             setImagePreview(null);
             setStatus("active");
-            setOrderIndex("0");
             setDisplayType("desktop");
             setStartAt("");
             setEndAt("");
@@ -172,7 +165,6 @@ function AddBanner() {
         if (buttonText.trim()) formData.append("buttonText", buttonText.trim());
         formData.append("imageURL", imageURL);
         formData.append("status", status);
-        formData.append("orderIndex", String(Number(orderIndex)));
         formData.append("displayType", displayType);
         if (startAt) formData.append("startAt", new Date(startAt + "T00:00:00.000Z").toISOString());
         if (endAt) formData.append("endAt", new Date(endAt + "T00:00:00.000Z").toISOString());
@@ -382,18 +374,6 @@ function AddBanner() {
                                     </button>
                                 ))}
                             </div>
-                        </FieldCard>
-
-                        <FieldCard icon={Hash} label="Order Index *" error={fieldError("orderIndex")}>
-                            <InputField
-                                value={orderIndex}
-                                onChange={(e) => setOrderIndex(e.target.value)}
-                                onBlur={() => handleBlur("orderIndex")}
-                                type="number"
-                                min="0"
-                                placeholder="0"
-                            />
-                            <p className="mt-1.5 text-xs text-gray-600">Lower numbers appear first.</p>
                         </FieldCard>
                     </div>
 

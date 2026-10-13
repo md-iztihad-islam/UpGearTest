@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-    ArrowLeft, Loader2, Plus, X, ArrowUp, ArrowDown,
+    ArrowLeft, Loader2, Plus, X,
     Save, ImagePlus, SlidersHorizontal, ChevronDown,
+    ChevronLeft, ChevronRight, GripVertical,
 } from "lucide-react";
 
 import getProductByIdApi from "@/services/dashboard/product/getProductByIdApi";
@@ -14,6 +15,22 @@ import getFiltersBySubCategoryApi from "@/services/dashboard/category/getFilters
 import getFilterItemsBySubCategoryApi from "@/services/dashboard/category/getFilterItemsBySubCategoryApi";
 
 const MAX_NEW_PRODUCT_IMAGES = 10;
+
+// Discount is derived from the two prices — the backend recalculates it too.
+const getDiscount = (mainPrice, price) => {
+    const main = Number.parseFloat(mainPrice);
+    const selling = Number.parseFloat(price);
+    if (Number.isNaN(main) || Number.isNaN(selling)) return null;
+    return Math.max(0, Math.round((main - selling) * 100) / 100);
+};
+
+const moveItem = (list, from, to) => {
+    if (from === to || to < 0 || to >= list.length) return list;
+    const next = [...list];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    return next;
+};
 
 // ─── small helpers ────────────────────────────────────────────────────────────
 
@@ -40,7 +57,6 @@ const inputCls =
  *   productFilterId?: string   // present for existing, absent for new
  *   filterId: string
  *   filterItemId: string
- *   orderIndex: number
  * }>
  */
 function ProductFiltersSection({ subCategoryId, productFilters, onChange }) {
@@ -70,15 +86,12 @@ function ProductFiltersSection({ subCategoryId, productFilters, onChange }) {
             {
                 filterId: firstFilter.filterId,
                 filterItemId: firstItem?.filterItemId ?? "",
-                orderIndex: productFilters.length,
             },
         ]);
     };
 
     const handleRemove = (index) => {
-        const next = productFilters.filter((_, i) => i !== index)
-            .map((pf, i) => ({ ...pf, orderIndex: i }));
-        onChange(next);
+        onChange(productFilters.filter((_, i) => i !== index));
     };
 
     const handleChange = (index, field, value) => {
@@ -93,14 +106,6 @@ function ProductFiltersSection({ subCategoryId, productFilters, onChange }) {
             return updated;
         });
         onChange(next);
-    };
-
-    const handleMove = (index, direction) => {
-        const next = [...productFilters];
-        const target = index + direction;
-        if (target < 0 || target >= next.length) return;
-        [next[index], next[target]] = [next[target], next[index]];
-        onChange(next.map((pf, i) => ({ ...pf, orderIndex: i })));
     };
 
     if (!subCategoryId) {
@@ -118,26 +123,6 @@ function ProductFiltersSection({ subCategoryId, productFilters, onChange }) {
                     key={index}
                     className="flex items-center gap-3 p-3 bg-gray-700/50 border border-gray-600/60 rounded-xl"
                 >
-                    {/* Order controls */}
-                    <div className="flex flex-col gap-1 flex-shrink-0">
-                        <button
-                            type="button"
-                            onClick={() => handleMove(index, -1)}
-                            disabled={index === 0}
-                            className="p-1 bg-gray-600 hover:bg-gray-500 rounded transition disabled:opacity-30"
-                        >
-                            <ArrowUp className="w-3 h-3" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => handleMove(index, 1)}
-                            disabled={index === productFilters.length - 1}
-                            className="p-1 bg-gray-600 hover:bg-gray-500 rounded transition disabled:opacity-30"
-                        >
-                            <ArrowDown className="w-3 h-3" />
-                        </button>
-                    </div>
-
                     {/* Filter select */}
                     <div className="flex-1 min-w-0">
                         <div className="relative">
@@ -209,7 +194,6 @@ function EditProduct() {
         title: "",
         subTitle: "",
         mainPrice: "",
-        discount: "",
         price: "",
         status: "draft",
         slug: "",
@@ -224,6 +208,8 @@ function EditProduct() {
     const [productImages, setProductImages] = useState([]);
     const [productFilters, setProductFilters] = useState([]);
     const [hasHydrated, setHasHydrated] = useState(false);
+    const [dragIndex, setDragIndex] = useState(null);
+    const [dragOverIndex, setDragOverIndex] = useState(null);
 
     // ── queries ──────────────────────────────────────────────────────────────
     const { data: productRes, isLoading: isLoadingProduct, error: productError } = useQuery({
@@ -257,7 +243,6 @@ function EditProduct() {
             title: product.title || "",
             subTitle: product.subTitle || "",
             mainPrice: product.mainPrice?.toString() || "",
-            discount: product.discount?.toString() || "",
             price: product.price?.toString() || "",
             status: product.status || "draft",
             slug: product.slug || "",
@@ -271,10 +256,9 @@ function EditProduct() {
 
         setBannerImage({ existingUrl: product.bannerImageURL || null, file: null, previewUrl: null });
 
+        // The API already returns images in display order.
         setProductImages(
             (product.images || [])
-                .slice()
-                .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
                 .map((img) => ({
                     key: img.productImageId,
                     type: "existing",
@@ -285,13 +269,10 @@ function EditProduct() {
 
         setProductFilters(
             (product.productFilters || [])
-                .slice()
-                .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
                 .map((pf) => ({
                     productFilterId: pf.productFilterId,
                     filterId: pf.filterId,
                     filterItemId: pf.filterItemId,
-                    orderIndex: pf.orderIndex ?? 0,
                 }))
         );
 
@@ -301,6 +282,14 @@ function EditProduct() {
     // ── field handlers ────────────────────────────────────────────────────────
     const handleFieldChange = (field, value) =>
         setFormData((prev) => ({ ...prev, [field]: value }));
+
+    // Filters belong to a subcategory, so they no longer apply once the
+    // product moves to a group in a different subcategory.
+    const handleGroupChange = (groupId) => {
+        const nextGroup = groups.find((g) => g.groupId === groupId);
+        if (nextGroup?.subCategoryId !== subCategoryId) setProductFilters([]);
+        handleFieldChange("groupId", groupId);
+    };
 
     const handleToggle = (field) =>
         setFormData((prev) => ({ ...prev, [field]: !prev[field] }));
@@ -347,13 +336,35 @@ function EditProduct() {
     };
 
     const handleMoveProductImage = (index, direction) => {
-        setProductImages((prev) => {
-            const next = [...prev];
-            const targetIndex = index + direction;
-            if (targetIndex < 0 || targetIndex >= next.length) return prev;
-            [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
-            return next;
-        });
+        setProductImages((prev) => moveItem(prev, index, index + direction));
+    };
+
+    // ── drag-and-drop reordering ──────────────────────────────────────────────
+    const handleDragStart = (e, index) => {
+        setDragIndex(index);
+        e.dataTransfer.effectAllowed = "move";
+        // Firefox needs data set for the drag to start
+        e.dataTransfer.setData("text/plain", String(index));
+    };
+
+    const handleDragOver = (e, index) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        if (dragOverIndex !== index) setDragOverIndex(index);
+    };
+
+    const handleDrop = (e, index) => {
+        e.preventDefault();
+        if (dragIndex !== null) {
+            setProductImages((prev) => moveItem(prev, dragIndex, index));
+        }
+        setDragIndex(null);
+        setDragOverIndex(null);
+    };
+
+    const handleDragEnd = () => {
+        setDragIndex(null);
+        setDragOverIndex(null);
     };
 
     // ── mutation ──────────────────────────────────────────────────────────────
@@ -377,18 +388,21 @@ function EditProduct() {
     const handleSubmit = () => {
         if (!formData.groupId) return window.showToast("Please select a group.", "error");
         if (!formData.title.trim()) return window.showToast("Title is required.", "error");
-        if (!formData.mainPrice || !formData.price) return window.showToast("Main price and price are required.", "error");
+        if (!formData.mainPrice || !formData.price) return window.showToast("Main price and selling price are required.", "error");
+        if (Number.parseFloat(formData.price) > Number.parseFloat(formData.mainPrice)) {
+            return window.showToast("Selling price can't be higher than the main price.", "error");
+        }
         if (!formData.slug.trim()) return window.showToast("Slug is required.", "error");
 
         const existingPayload = [];
-        const newOrderIndexes = [];
+        const newImagePositions = [];
         const newFiles = [];
 
         productImages.forEach((img, index) => {
             if (img.type === "existing") {
-                existingPayload.push({ productImageId: img.id, orderIndex: index });
+                existingPayload.push({ productImageId: img.id, position: index });
             } else {
-                newOrderIndexes.push(index);
+                newImagePositions.push(index);
                 newFiles.push(img.file);
             }
         });
@@ -398,7 +412,6 @@ function EditProduct() {
         form.append("title", formData.title);
         form.append("subTitle", formData.subTitle);
         form.append("mainPrice", formData.mainPrice);
-        if (formData.discount) form.append("discount", formData.discount);
         form.append("price", formData.price);
         form.append("status", formData.status);
         form.append("slug", formData.slug);
@@ -412,18 +425,16 @@ function EditProduct() {
         if (bannerImage.file) form.append("bannerImage", bannerImage.file);
 
         form.append("existingProductImages", JSON.stringify(existingPayload));
-        form.append("newImageOrderIndexes", JSON.stringify(newOrderIndexes));
+        form.append("newImagePositions", JSON.stringify(newImagePositions));
         newFiles.forEach((file) => form.append("productImages", file));
 
         // productFilters — send full array; controller/service handles diff
         form.append(
             "productFilters",
             JSON.stringify(
-                productFilters.map((pf, i) => ({
-                    ...(pf.productFilterId ? { productFilterId: pf.productFilterId } : {}),
+                productFilters.map((pf) => ({
                     filterId: pf.filterId,
                     filterItemId: pf.filterItemId,
-                    orderIndex: i,
                 }))
             )
         );
@@ -432,6 +443,12 @@ function EditProduct() {
     };
 
     const isLoadingDropdowns = isLoadingGroups || isLoadingCoupons;
+
+    const discount = getDiscount(formData.mainPrice, formData.price);
+    const discountPercent =
+        discount && Number.parseFloat(formData.mainPrice) > 0
+            ? Math.round((discount / Number.parseFloat(formData.mainPrice)) * 100)
+            : 0;
 
     // ── render ────────────────────────────────────────────────────────────────
     return (
@@ -476,13 +493,13 @@ function EditProduct() {
                                 <div className="relative">
                                     <select
                                         value={formData.groupId}
-                                        onChange={(e) => handleFieldChange("groupId", e.target.value)}
+                                        onChange={(e) => handleGroupChange(e.target.value)}
                                         className={inputCls + " appearance-none pr-10"}
                                     >
                                         <option value="">Select group</option>
                                         {groups.map((group) => (
                                             <option key={group.groupId} value={group.groupId}>
-                                                {group.category?.title} / {group.subCategory?.title} — {group.brand?.name}
+                                                {group.groupId} — {group.category?.title} / {group.subCategory?.title} ({group.brand?.title})
                                             </option>
                                         ))}
                                     </select>
@@ -545,10 +562,13 @@ function EditProduct() {
                                         className={inputCls} />
                                 </div>
                                 <div>
-                                    <FieldLabel>Discount (৳)</FieldLabel>
-                                    <input type="number" value={formData.discount}
-                                        onChange={(e) => handleFieldChange("discount", e.target.value)}
-                                        className={inputCls} />
+                                    <FieldLabel>Discount (৳) <span className="text-gray-500">— auto</span></FieldLabel>
+                                    <div className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-300 text-sm">
+                                        {discount === null ? "—" : `৳${discount.toLocaleString()}`}
+                                        {discountPercent > 0 && (
+                                            <span className="ml-2 text-xs text-green-400">({discountPercent}% off)</span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
@@ -637,7 +657,7 @@ function EditProduct() {
                         <SectionCard title="Product Images">
                             <div className="flex items-center justify-between mb-5">
                                 <p className="text-xs text-gray-500">
-                                    {productImages.length} image{productImages.length !== 1 ? "s" : ""} · drag order with arrows
+                                    {productImages.length} image{productImages.length !== 1 ? "s" : ""} · drag to reorder, the first image is the main one
                                 </p>
                                 <label className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium text-sm cursor-pointer transition">
                                     <Plus className="w-4 h-4" />
@@ -653,29 +673,54 @@ function EditProduct() {
                             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                                 {productImages.map((img, index) => (
                                     <div key={img.key}
-                                        className="relative bg-gray-700/50 border border-gray-600 rounded-xl overflow-hidden aspect-square">
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, index)}
+                                        onDragOver={(e) => handleDragOver(e, index)}
+                                        onDrop={(e) => handleDrop(e, index)}
+                                        onDragEnd={handleDragEnd}
+                                        className={`relative bg-gray-700/50 border rounded-xl overflow-hidden aspect-square cursor-grab active:cursor-grabbing transition ${
+                                            dragIndex === index ? "opacity-40" : ""
+                                        } ${
+                                            dragOverIndex === index && dragIndex !== index
+                                                ? "border-blue-500 ring-2 ring-blue-500/50"
+                                                : "border-gray-600"
+                                        }`}>
                                         <img
                                             src={img.type === "existing" ? img.url : img.previewUrl}
                                             alt={`Product ${index + 1}`}
-                                            className="w-full h-full object-cover"
+                                            draggable={false}
+                                            className="w-full h-full object-cover pointer-events-none"
                                         />
                                         <button type="button" onClick={() => handleRemoveProductImage(img.key)}
                                             className="absolute top-1.5 right-1.5 p-1.5 bg-red-600 hover:bg-red-700 rounded-full transition">
                                             <X className="w-3.5 h-3.5" />
                                         </button>
-                                        <div className="absolute bottom-1.5 left-1.5 flex gap-1">
-                                            <button type="button" onClick={() => handleMoveProductImage(index, -1)} disabled={index === 0}
-                                                className="p-1.5 bg-gray-900/80 hover:bg-gray-900 rounded-full transition disabled:opacity-30">
-                                                <ArrowUp className="w-3.5 h-3.5" />
-                                            </button>
-                                            <button type="button" onClick={() => handleMoveProductImage(index, 1)} disabled={index === productImages.length - 1}
-                                                className="p-1.5 bg-gray-900/80 hover:bg-gray-900 rounded-full transition disabled:opacity-30">
-                                                <ArrowDown className="w-3.5 h-3.5" />
-                                            </button>
+                                        <div className="absolute bottom-1.5 left-1.5 right-1.5 flex items-center justify-between">
+                                            <div className="flex gap-1">
+                                                <button type="button" onClick={() => handleMoveProductImage(index, -1)} disabled={index === 0}
+                                                    aria-label="Move image left"
+                                                    className="p-1.5 bg-gray-900/80 hover:bg-gray-900 rounded-full transition disabled:opacity-30">
+                                                    <ChevronLeft className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button type="button" onClick={() => handleMoveProductImage(index, 1)} disabled={index === productImages.length - 1}
+                                                    aria-label="Move image right"
+                                                    className="p-1.5 bg-gray-900/80 hover:bg-gray-900 rounded-full transition disabled:opacity-30">
+                                                    <ChevronRight className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                            <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-gray-900/80 rounded-full text-[10px] font-medium text-gray-300">
+                                                <GripVertical className="w-3 h-3" />
+                                                {index + 1}
+                                            </span>
                                         </div>
-                                        {img.type === "new" && (
-                                            <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-green-600/90 rounded text-[10px] font-medium">New</span>
-                                        )}
+                                        <div className="absolute top-1.5 left-1.5 flex gap-1">
+                                            {index === 0 && (
+                                                <span className="px-1.5 py-0.5 bg-blue-600/90 rounded text-[10px] font-medium">Main</span>
+                                            )}
+                                            {img.type === "new" && (
+                                                <span className="px-1.5 py-0.5 bg-green-600/90 rounded text-[10px] font-medium">New</span>
+                                            )}
+                                        </div>
                                     </div>
                                 ))}
                             </div>

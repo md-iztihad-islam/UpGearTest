@@ -58,8 +58,8 @@ function ProductImageGallery({ images = [], title, autoPlayInterval = 3000 }) {
 
     if (!images || images.length === 0) {
         return (
-            <div className="aspect-square bg-gray-100 rounded-2xl flex items-center justify-center">
-                <p className="text-gray-400">No images available</p>
+            <div className="aspect-square bg-[#0a0a0a] rounded-none rounded-tr-lg rounded-bl-lg flex items-center justify-center">
+                <p className="text-gray-500">No images available</p>
             </div>
         );
     }
@@ -67,7 +67,7 @@ function ProductImageGallery({ images = [], title, autoPlayInterval = 3000 }) {
     return (
         <div className="space-y-3 select-none">
             {/* Main Slider */}
-            <div className="relative w-full rounded-2xl overflow-hidden bg-black shadow-xl" style={{ aspectRatio: "1/1" }}>
+            <div className="relative w-full rounded-none rounded-tr-lg rounded-bl-lg overflow-hidden bg-[#0a0a0a]" style={{ aspectRatio: "1/1" }}>
                 <div
                     ref={sliderRef}
                     className="flex h-full"
@@ -94,15 +94,12 @@ function ProductImageGallery({ images = [], title, autoPlayInterval = 3000 }) {
                             <img
                                 src={image}
                                 alt={`${title} - ${index + 1}`}
-                                className="w-full h-full object-cover pointer-events-none"
+                                className="w-full h-full object-contain pointer-events-none"
                                 draggable={false}
                             />
                         </div>
                     ))}
                 </div>
-
-                {/* Gradient overlay */}
-                <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/30 via-transparent to-transparent" />
 
                 {/* Dot indicators */}
                 {images.length > 1 && (
@@ -114,7 +111,7 @@ function ProductImageGallery({ images = [], title, autoPlayInterval = 3000 }) {
                                     "rounded-full transition-all duration-300",
                                     selectedImage === index
                                         ? "bg-white w-4 h-2"
-                                        : "bg-white/50 w-2 h-2"
+                                        : "bg-white/30 w-2 h-2"
                                 )}
                             />
                         ))}
@@ -130,16 +127,16 @@ function ProductImageGallery({ images = [], title, autoPlayInterval = 3000 }) {
                             key={index}
                             onClick={() => setSelectedImage(index)}
                             className={cn(
-                                "flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden border-2 transition-all duration-200",
+                                "flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border-2 bg-[#0a0a0a] transition-all duration-200",
                                 selectedImage === index
-                                    ? "border-blue-500 scale-105 shadow-md"
-                                    : "border-transparent opacity-50 hover:opacity-80"
+                                    ? "border-white"
+                                    : "border-[#2a2a2a] opacity-60 hover:opacity-100"
                             )}
                         >
                             <img
                                 src={image}
                                 alt={`${title} thumbnail ${index + 1}`}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-contain"
                             />
                         </button>
                     ))}

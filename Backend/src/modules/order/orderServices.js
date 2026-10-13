@@ -240,6 +240,7 @@ import {
     addOrderRepository,
     addProductsToOrderRepository,
     cancelOrderRepository,
+    deleteOrderRepository,
     getAllAcceptedOrdersRepository,
     getAllCanceledOrdersRepository,
     getAllPendingOrdersRepository,
@@ -253,9 +254,18 @@ const ORDER_TRANSACTION_TIMEOUT_MS = 15000;
 
 export const addOrderService = async (orderReqData) => {
     return prisma.$transaction(async (tx) => {
+        // Email is optional. Customer.email is unique, so a blank value must be
+        // stored as null, and an address already used by another customer is
+        // dropped rather than failing the whole order.
+        let email = orderReqData.customerEmail?.trim() || null;
+        if (email) {
+            const emailOwner = await tx.customer.findUnique({ where: { email }, select: { customerId: true } });
+            if (emailOwner) email = null;
+        }
+
         const customerData = {
             name: orderReqData.customerName,
-            email: orderReqData.customerEmail,
+            email,
             phone: orderReqData.customerPhone,
         };
 
@@ -386,6 +396,33 @@ export const cancelAcceptedOrShippedOrderService = async (orderId) => {
         }
 
         return order;
+    }, {
+        timeout: ORDER_TRANSACTION_TIMEOUT_MS,
+    });
+};
+
+// Shipped orders have already left the warehouse, so deleting one is purely a
+// record clean-up: stock quantities and serial numbers stay exactly as they are.
+export const deleteShippedOrderService = async (orderId) => {
+    return prisma.$transaction(async (tx) => {
+        const order = await tx.order.findUnique({
+            where: { orderId },
+            select: { orderId: true, orderStatus: true },
+        });
+
+        if (!order) {
+            const error = new Error("Order not found");
+            error.statusCode = 404;
+            throw error;
+        }
+
+        if (order.orderStatus !== "SHIPPED") {
+            const error = new Error("Only shipped orders can be deleted");
+            error.statusCode = 400;
+            throw error;
+        }
+
+        return deleteOrderRepository(orderId, tx);
     }, {
         timeout: ORDER_TRANSACTION_TIMEOUT_MS,
     });

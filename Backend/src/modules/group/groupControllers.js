@@ -27,8 +27,8 @@ export const addGroupController = async (req, res) => {
             insideDhakaCharge,
             outsideDhakaCharge,
             description,
-            productType,
-            warrentyId,
+            warrantyId,
+            warrentyId,    // legacy spelling, still accepted
             keyFeatures,   // string[] from formData keyFeatures[]
             tags,          // string[] from formData tags[]
             filterItems,   // JSON string[] from formData filterItems[]
@@ -56,8 +56,8 @@ export const addGroupController = async (req, res) => {
             insideDhakaCharge: normalizeDecimal(insideDhakaCharge),
             outsideDhakaCharge: normalizeDecimal(outsideDhakaCharge),
             description,
-            productType,
-            warrentyId,
+            // FormData turns an unselected warranty into the string "null"
+            warrentyId: [warrantyId, warrentyId].find((id) => id && id !== "null") || null,
             keyFeatures: parsedKeyFeatures,
             tags: parsedTags,
             filterItems: parsedFilterItems,
@@ -142,10 +142,29 @@ export const getGroupByIdController = async (req, res) => {
     }
 };
 
+// Columns of Group that the edit form may change. Anything else in the body
+// (e.g. the removed productType, or ordering helpers) must not reach Prisma.
+const UPDATABLE_GROUP_FIELDS = [
+    "brandId",
+    "categoryId",
+    "subCategoryId",
+    "description",
+    "warrantyId",
+    "insideDhakaCharge",
+    "outsideDhakaCharge",
+    "keyFeatures",
+    "tags",
+    "productSpecifications",
+    "existingDescriptionImages",
+];
+
 export const updateGroupByIdController = async (req, res) => {
     try {
         const groupId = req.params.id;
-        const updateData = { ...req.body };
+        const updateData = Object.fromEntries(
+            Object.entries(req.body).filter(([key]) => UPDATABLE_GROUP_FIELDS.includes(key))
+        );
+        let newImagePositions;
 
         if (!groupId) {
             return res.status(400).json({
@@ -187,8 +206,8 @@ export const updateGroupByIdController = async (req, res) => {
             if (updateData.existingDescriptionImages !== undefined) {
                 updateData.existingDescriptionImages = JSON.parse(updateData.existingDescriptionImages);
             }
-            if (updateData.newImageOrderIndexes !== undefined) {
-                updateData.newImageOrderIndexes = JSON.parse(updateData.newImageOrderIndexes);
+            if (req.body.newImagePositions !== undefined) {
+                newImagePositions = JSON.parse(req.body.newImagePositions);
             }
         } catch (parseError) {
             return res.status(400).json({
@@ -206,7 +225,7 @@ export const updateGroupByIdController = async (req, res) => {
         const newImageFiles = req.files?.descImages || [];
         updateData.newDescriptionImages = newImageFiles.map((file, index) => ({
             imageURL: `${R2_PUBLIC_URL}/${file.key}`,
-            orderIndex: updateData.newImageOrderIndexes?.[index] ?? index,
+            position: newImagePositions?.[index],
         }));
 
         const response = await updateGroupByIdService(groupId, updateData);

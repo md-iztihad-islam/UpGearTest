@@ -3,20 +3,21 @@ import { Link } from "react-router-dom";
 import cartStore from "@/state/clientPart/cartStore";
 
 // product: expects the shape returned by your product list/group endpoints
-// { productId, slug, title, subTitle, images, mainPrice, discount, price, tags, group }
+// { productId, slug, title, subTitle, images, mainPrice, price, group }
 function ProductCard({ product }) {
     const { addToCart } = cartStore();
 
     if (!product) return null;
 
-    const mainPrice = Number(product.mainPrice) || 0;
-    const discount = Number(product.discount) || 0;
     const price = Number(product.price) || 0;
-    const hasDiscount = discount > 0 && mainPrice > price;
+    const mainPrice = Number(product.mainPrice) || price;
+    // Derived from the two prices so older products without a stored
+    // discount still show their previous price.
+    const discount = Math.max(0, mainPrice - price);
+    const hasDiscount = discount > 0;
     const discountPercent = hasDiscount ? Math.round((discount / mainPrice) * 100) : 0;
 
-    const image = product.images?.[0]?.imageURL || product.bannerImageURL;
-    const tags = product.tags || product.group?.tags?.map((t) => t.tag) || [];
+    const image = product.bannerImageURL || product.images?.[0]?.imageURL;
 
     const handleAddToCart = (e) => {
         e.preventDefault();
@@ -61,34 +62,22 @@ function ProductCard({ product }) {
                     {product.subTitle ? ` ${product.subTitle}` : ""}
                 </h3>
 
-                {/* Tags — hidden on phone */}
-                {tags.length > 0 && (
-                    <div className="hidden sm:flex flex-wrap gap-1.5">
-                        {tags.slice(0, 4).map((tag, i) => (
-                            <span
-                                key={i}
-                                className="px-2.5 py-1 bg-gray-800 text-gray-300 text-xs rounded-full"
-                            >
-                                {tag}
-                            </span>
-                        ))}
-                    </div>
-                )}
-
-                {/* Price */}
-                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                    <span className="text-white text-sm sm:text-xl font-bold">
-                        ৳{price.toLocaleString()}
-                    </span>
-                    {hasDiscount && (
-                        <>
+                {/* Price — previous price and discounted price side by side */}
+                <div className="space-y-0.5">
+                    <div className="flex items-baseline gap-1.5 sm:gap-2 flex-wrap">
+                        <span className="text-white text-sm sm:text-xl font-bold">
+                            ৳{price.toLocaleString()}
+                        </span>
+                        {hasDiscount && (
                             <span className="text-gray-500 text-[11px] sm:text-sm line-through">
                                 ৳{mainPrice.toLocaleString()}
                             </span>
-                            <span className="text-green-400 text-[11px] sm:text-sm font-semibold">
-                                Save {discountPercent}%
-                            </span>
-                        </>
+                        )}
+                    </div>
+                    {hasDiscount && (
+                        <p className="text-green-400 text-[11px] sm:text-sm font-semibold">
+                            Save ৳{discount.toLocaleString()} ({discountPercent}%)
+                        </p>
                     )}
                 </div>
 

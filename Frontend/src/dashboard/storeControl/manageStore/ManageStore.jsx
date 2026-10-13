@@ -3,10 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
     ArrowLeft, Search, Edit, Trash2, Loader2,
-    Store, Plus, Hash, Phone, Mail, MapPin, ArrowUpDown,
+    Store, Plus, Hash, Phone, Mail, MapPin,
 } from "lucide-react";
 import getAllStoresApi from "@/services/dashboard/store/getAllStoresApi";
 import deleteStoreApi from "@/services/dashboard/store/deleteStoreApi";
+import { matchesSearch } from "@/lib/search";
 // import deleteStoreByIdApi from "@/services/dashboard/store/deleteStoreByIdApi";
 
 function StatusBadge({ status }) {
@@ -37,14 +38,11 @@ function StoreRow({ store, onEdit, onDelete, isDeleting }) {
                 </div>
             </td>
 
-            {/* Number + Index */}
+            {/* Number */}
             <td className="p-4">
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700 text-gray-300 border border-gray-600 rounded font-mono text-xs">
                     <Hash className="w-3 h-3" />{store.storeNumber}
                 </span>
-                <p className="text-xs text-gray-600 mt-1 flex items-center gap-1">
-                    <ArrowUpDown className="w-3 h-3" />idx {store.orderIndex}
-                </p>
             </td>
 
             {/* Address */}
@@ -117,10 +115,6 @@ function MobileStoreCard({ store, onEdit, onDelete, isDeleting }) {
                         <Hash className="w-3 h-3" />{store.storeNumber}
                     </span>
                 </div>
-                <div>
-                    <p className="text-gray-500 mb-1">Order Index</p>
-                    <p className="text-gray-300">{store.orderIndex}</p>
-                </div>
                 <div className="col-span-2">
                     <p className="text-gray-500 mb-1">Address</p>
                     <p className="text-gray-400">{store.address}</p>
@@ -168,16 +162,8 @@ function ManageStore() {
     const allStores = storesRes?.data || [];
 
     const filteredStores = useMemo(() => {
-        if (!searchQuery.trim()) return allStores;
-        const q = searchQuery.toLowerCase();
         return allStores.filter((s) =>
-            s.title?.toLowerCase().includes(q) ||
-            s.subTitle?.toLowerCase().includes(q) ||
-            s.storeNumber?.toLowerCase().includes(q) ||
-            s.address?.toLowerCase().includes(q) ||
-            s.phone?.toLowerCase().includes(q) ||
-            s.email?.toLowerCase().includes(q) ||
-            s.status?.toLowerCase().includes(q)
+            matchesSearch(searchQuery, [s.title, s.subTitle, s.storeNumber, s.address, s.phone, s.email, s.status])
         );
     }, [allStores, searchQuery]);
 

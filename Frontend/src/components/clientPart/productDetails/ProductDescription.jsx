@@ -11,15 +11,12 @@ function ProductDescription({ productDetails }) {
         <div className="space-y-6">
             {hasImages && (
                 <div>
-                    <div className="flex items-center gap-2.5 mb-4">
-                        <div className="h-1 w-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full" />
-                        <h3 className="text-base font-bold text-white">Product Images</h3>
-                    </div>
+                    <h3 className="text-base font-bold text-white mb-4">Product Images</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {images.map((imgSrc, index) => (
                             <div
                                 key={index}
-                                className="rounded-xl overflow-hidden border border-gray-700/50 bg-gray-900/30"
+                                className="rounded-none rounded-tr-xl rounded-bl-xl overflow-hidden border border-[#2a2a2a] bg-[#0f0f0f]"
                             >
                                 <img
                                     src={imgSrc}
@@ -34,12 +31,9 @@ function ProductDescription({ productDetails }) {
 
             {hasContent && (
                 <div>
-                    <div className="flex items-center gap-2.5 mb-4">
-                        <div className="h-1 w-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full" />
-                        <h3 className="text-base font-bold text-white">Description</h3>
-                    </div>
+                    <h3 className="text-base font-bold text-white mb-4">Description</h3>
                     <div
-                        className="prose prose-sm max-w-none text-gray-300 prose-headings:text-white prose-strong:text-white prose-a:text-blue-400 hover:prose-a:text-blue-300 leading-relaxed"
+                        className="prose prose-sm max-w-none text-gray-300 prose-headings:text-white prose-strong:text-white prose-a:text-white prose-a:underline hover:prose-a:text-gray-300 leading-relaxed"
                         dangerouslySetInnerHTML={{ __html: content }}
                     />
                 </div>

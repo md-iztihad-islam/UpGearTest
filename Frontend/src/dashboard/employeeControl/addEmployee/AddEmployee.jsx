@@ -18,7 +18,6 @@ function AddEmployee() {
     const [storeId, setStoreId] = useState("");
     const [status, setStatus] = useState("");
     const [role, setRole] = useState("");
-    // const [orderIndex, setOrderIndex] = useState(0);
     const [imageFile, setImageFile] = useState(null);
 
     const { data: storesRes } = useQuery({
@@ -54,7 +53,6 @@ function AddEmployee() {
         formData.append("storeId", storeId);
         formData.append("status", status);
         formData.append("role", role);
-        // formData.append("orderIndex", orderIndex);
         if (imageFile) formData.append("imageURL", imageFile);
         addEmployee(formData);
     };
@@ -165,13 +163,6 @@ function AddEmployee() {
                                 idKey="value"
                                 labelKey="label"
                             />
-                            {/* <InputRow
-                                label="Order Index"
-                                type="number"
-                                value={orderIndex}
-                                setValue={setOrderIndex}
-                                required
-                            /> */}
                             <InputRow
                                 label="Hire Date"
                                 type="date"

@@ -28,16 +28,7 @@ export const addBannerController = async (req, res) => {
             });
         }
 
-        const parsedOrderIndex = Number.parseInt(bannerData.orderIndex, 10);
-        if (Number.isNaN(parsedOrderIndex)) {
-            return res.status(400).json({
-                success: false,
-                message: "Banner orderIndex must be a valid number",
-            });
-        }
-
         bannerData.imageURL = imageURL;
-        bannerData.orderIndex = parsedOrderIndex;
 
         const response = await addBannerService(bannerData);
 

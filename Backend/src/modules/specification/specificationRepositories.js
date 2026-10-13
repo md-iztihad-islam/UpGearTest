@@ -16,11 +16,16 @@ export const addSpecificationRepository = async (specificationData) => {
 
 export const deleteSpecificationByIdRepository = async (specificationId) => {
     try {
-        const response = await prisma.specification.delete({
-            where: {
-                specificationId: specificationId,
-            },
-        });
+        // Remove the values groups hold for this specification first,
+        // otherwise the foreign key blocks the delete.
+        const [, response] = await prisma.$transaction([
+            prisma.productSpecification.deleteMany({ where: { specificationId } }),
+            prisma.specification.delete({
+                where: {
+                    specificationId: specificationId,
+                },
+            }),
+        ]);
         return response;
     } catch (error) {
         console.log("Error in deleteSpecificationByIdRepository:", error);

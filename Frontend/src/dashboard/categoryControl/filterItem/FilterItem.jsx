@@ -12,13 +12,13 @@ function FilterItem() {
             description: "Create new filter items",
             color: "from-blue-600 to-blue-700"
         },
-        // {
-        //     path: "manage-filter-item",
-        //     title: "Manage Filter-item",
-        //     icon: Settings,
-        //     description: "View and edit filter items",
-        //     color: "from-purple-600 to-purple-700"
-        // }
+        {
+            path: "manage-filter-item",
+            title: "Manage Filter-item",
+            icon: Settings,
+            description: "View and edit filter items",
+            color: "from-purple-600 to-purple-700"
+        }
     ];
 
     return (

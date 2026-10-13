@@ -3,13 +3,10 @@ import {
 	addProductService,
 	deleteProductByIdService,
 	getAllProductsService,
-	getDiscountedService,
-	getHotDealsService,
-	getNewArraivalsService,
 	getProductByIdService,
 	getProductbySlugService,
 	getProductsBySubCategoryService,
-	searchProductsService,
+	listProductsService,
 	updateProductByIdService,
 } from "./productServices.js";
 
@@ -39,6 +36,10 @@ const parseBoolean = (value) => {
 
 	return undefined;
 };
+
+// Discount is always derived from the two prices, never entered by hand.
+const calculateDiscount = (mainPrice, price) =>
+	Math.max(0, Math.round((mainPrice - price) * 100) / 100);
 
 const getS3URL = (file) => (file?.key ? `${R2_PUBLIC_URL}/${file.key}` : undefined);
 
@@ -90,7 +91,6 @@ export const addProductController = async (req, res) => {
 
 		const parsedMainPrice = parseDecimal(productData.mainPrice);
 		const parsedPrice = parseDecimal(productData.price);
-		const parsedDiscount = parseDecimal(productData.discount);
 
 		if (Number.isNaN(parsedMainPrice)) {
 			return res.status(400).json({
@@ -103,13 +103,6 @@ export const addProductController = async (req, res) => {
 			return res.status(400).json({
 				success: false,
 				message: "Product price must be a valid number",
-			});
-		}
-
-		if (Number.isNaN(parsedDiscount)) {
-			return res.status(400).json({
-				success: false,
-				message: "Product discount must be a valid number",
 			});
 		}
 
@@ -140,10 +133,7 @@ export const addProductController = async (req, res) => {
 
 		productData.mainPrice = parsedMainPrice;
 		productData.price = parsedPrice;
-
-		if (parsedDiscount !== undefined) {
-			productData.discount = parsedDiscount;
-		}
+		productData.discount = calculateDiscount(parsedMainPrice, parsedPrice);
 
 		if (parsedIsNewArrival !== undefined) {
 			productData.isNewArrival = parsedIsNewArrival;
@@ -279,15 +269,11 @@ export const updateProductByIdController = async (req, res) => {
 			updateData.price = parsedPrice;
 		}
 
-		if (updateData.discount !== undefined) {
-			const parsedDiscount = parseDecimal(updateData.discount);
-			if (Number.isNaN(parsedDiscount)) {
-				return res.status(400).json({
-					success: false,
-					message: "Product discount must be a valid number",
-				});
-			}
-			updateData.discount = parsedDiscount;
+		// Recalculate the discount whenever both prices are supplied; a
+		// client-sent discount is ignored.
+		delete updateData.discount;
+		if (updateData.mainPrice !== undefined && updateData.price !== undefined) {
+			updateData.discount = calculateDiscount(updateData.mainPrice, updateData.price);
 		}
 
 		if (updateData.isNewArrival !== undefined) {
@@ -308,8 +294,8 @@ export const updateProductByIdController = async (req, res) => {
 			if (updateData.existingProductImages !== undefined) {
 				updateData.existingProductImages = JSON.parse(updateData.existingProductImages);
 			}
-			if (updateData.newImageOrderIndexes !== undefined) {
-				updateData.newImageOrderIndexes = JSON.parse(updateData.newImageOrderIndexes);
+			if (updateData.newImagePositions !== undefined) {
+				updateData.newImagePositions = JSON.parse(updateData.newImagePositions);
 			}
 		} catch (parseError) {
 			return res.status(400).json({
@@ -341,9 +327,9 @@ export const updateProductByIdController = async (req, res) => {
 
 		updateData.newProductImages = newProductImageURLs.map((imageURL, index) => ({
 			imageURL,
-			orderIndex: updateData.newImageOrderIndexes?.[index] ?? index,
+			position: updateData.newImagePositions?.[index],
 		}));
-		delete updateData.newImageOrderIndexes;
+		delete updateData.newImagePositions;
 
 		const response = await updateProductByIdService(productId, updateData);
 
@@ -435,159 +421,101 @@ export const getProductBySlugController = async (req, res) => {
 	}
 };
 
-// searchProductsController.js
-export const searchProductsController = async (req, res) => {
-	try {
-		const { query } = req.query;
+// ── Storefront listing endpoints ─────────────────────────────────────────────
+// All of them accept the same query string:
+//   query        search text (search endpoint)
+//   subCategories, brands, filterItems   comma-separated ids (facet picks)
+//   minPrice, maxPrice, inStock=true
+//   sortBy       relevance | newest | oldest | price-asc | price-desc |
+//                name-asc | name-desc | discount-desc
+//   page, limit
 
-		if (!query) {
-			return res.status(400).json({
+const DEFAULT_LISTING_LIMIT = 12;
+const MAX_LISTING_LIMIT = 48;
+
+const parseIdList = (value) =>
+	(Array.isArray(value) ? value : String(value ?? "").split(","))
+		.map((id) => String(id).trim())
+		.filter(Boolean);
+
+const parsePriceParam = (value) => {
+	const parsed = Number.parseFloat(value);
+	return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+};
+
+const parseListingQuery = (query) => ({
+	search: String(query.query ?? query.q ?? "").slice(0, 200),
+	subCategoryIds: parseIdList(query.subCategories),
+	brandIds: parseIdList(query.brands),
+	filterItemIds: parseIdList(query.filterItems),
+	minPrice: parsePriceParam(query.minPrice),
+	maxPrice: parsePriceParam(query.maxPrice),
+	inStock: query.inStock === "true",
+	sortBy: query.sortBy,
+	page: Math.max(1, Number.parseInt(query.page, 10) || 1),
+	limit: Math.min(MAX_LISTING_LIMIT, Math.max(1, Number.parseInt(query.limit, 10) || DEFAULT_LISTING_LIMIT)),
+});
+
+const sendListing = async (res, options, label) => {
+	try {
+		const response = await listProductsService(options);
+
+		if (!response || response.message) {
+			return res.status(500).json({
 				success: false,
-				message: "Search query is required",
+				message: response?.message || `Error fetching ${label}`,
 			});
 		}
 
-		const searchTerm = query.trim();
-		const page = parseInt(req.query.page, 10) || 1;
-		const limit = parseInt(req.query.limit, 10) || 10;
-		const sortBy = req.query.sortBy || "createdAt";
-
-		const response = await searchProductsService(searchTerm, page, limit, sortBy); // now forwarded
-
-		return res.status(200).json({
-			success: true,
-			data: response, // { products, page, limit }
-		});
+		return res.status(200).json({ success: true, data: response });
 	} catch (error) {
-		console.log("Error in searchProductsController:", error);
+		console.log(`Error fetching ${label}:`, error);
 		return res.status(500).json({
 			success: false,
-			message: error.message || "Error searching products in controller",
+			message: error.message || `Error fetching ${label} in controller`,
 		});
 	}
 };
 
-export const getNewArrivalsController = async (req, res) => {
-	try {
-		const page = parseInt(req.query.page, 10) || 1;
-		const limit = parseInt(req.query.limit, 10) || 10;
-		const sortBy = req.query.sortBy || "createdAt";
+export const searchProductsController = (req, res) =>
+	sendListing(
+		res,
+		{
+			...parseListingQuery(req.query),
+			// The dashboard POS can sell products that aren't published yet.
+			includeDrafts: req.query.includeDrafts === "true",
+		},
+		"search results"
+	);
 
-		const response = await getNewArraivalsService(page, limit, sortBy);
+export const getShopProductsController = (req, res) =>
+	sendListing(res, parseListingQuery(req.query), "products");
 
-		if (!response || response.message) {
-			return res.status(500).json({
-				success: false,
-				message: response?.message || "Error fetching new arrivals",
-			});
-		}
+export const getNewArrivalsController = (req, res) =>
+	sendListing(res, { ...parseListingQuery(req.query), scope: { isNewArrival: true } }, "new arrivals");
 
-		return res.status(200).json({
-			success: true,
-			data: response,
-		});
-	} catch (error) {
-		console.log("Error in getNewArrivalsController:", error);
-		return res.status(500).json({
-			success: false,
-			message: error.message || "Error fetching new arrivals in controller",
-		});
-	}
-}
+export const getHotDealsController = (req, res) =>
+	sendListing(res, { ...parseListingQuery(req.query), scope: { isHotDeal: true } }, "hot deals");
 
-export const getHotDealsController = async (req, res) => {
-	try {
-		const page = parseInt(req.query.page, 10) || 1;
-		const limit = parseInt(req.query.limit, 10) || 10;
-		const sortBy = req.query.sortBy || "createdAt";
-
-		const response = await getHotDealsService(page, limit, sortBy);
-
-		if (!response || response.message) {
-			return res.status(500).json({
-				success: false,
-				message: response?.message || "Error fetching hot deals",
-			});
-		}
-
-		return res.status(200).json({
-			success: true,
-			data: response,
-		});
-	} catch (error) {
-		console.log("Error in getHotDealsController:", error);
-		return res.status(500).json({
-			success: false,
-			message: error.message || "Error fetching hot deals in controller",
-		});
-	}
-};
-
-export const getDiscountedController = async (req, res) => {
-	try {
-		const page = parseInt(req.query.page, 10) || 1;
-		const limit = parseInt(req.query.limit, 10) || 10;
-		const sortBy = req.query.sortBy || "createdAt";
-
-		const response = await getDiscountedService(page, limit, sortBy);
-
-		if (!response || response.message) {
-			return res.status(500).json({
-				success: false,
-				message: response?.message || "Error fetching discounted products",
-			});
-		}
-
-		return res.status(200).json({
-			success: true,
-			data: response,
-		});
-	} catch (error) {
-		console.log("Error in getDiscountedController:", error);
-		return res.status(500).json({
-			success: false,
-			message: error.message || "Error fetching discounted products in controller",
-		});
-	}
-}
+export const getDiscountedController = (req, res) =>
+	sendListing(res, { ...parseListingQuery(req.query), scope: { isDiscounted: true } }, "discounted products");
 
 export const getProductsBySubCategoryController = async (req, res) => {
 	try {
-		console.log("Received request for products by sub-category:", req.params, req.query);
-		const { subcategorySlug } = req.params;
-		const { page = 1, limit = 10, sortBy, filter } = req.query;
-
-		console.log("Data: ", subcategorySlug, page, limit, sortBy, filter);
-
-		// filter arrives as a JSON string over query params, e.g.
-		// ?filter=[{"filterId":"...","filterItemId":"..."}]
-		let parsedFilter = [];
-		if (filter) {
-			try {
-				parsedFilter = JSON.parse(filter);
-				if (!Array.isArray(parsedFilter)) parsedFilter = [];
-			} catch (parseError) {
-				console.log("Error parsing filter query in getProductsBySubCategoryController:", parseError);
-				parsedFilter = [];
-			}
-		}
+		const { subcategorySlug, brandSlug } = req.params;
 
 		const result = await getProductsBySubCategoryService(
 			subcategorySlug,
-			Number(page),
-			Number(limit),
-			sortBy,
-			parsedFilter
+			brandSlug,
+			parseListingQuery(req.query)
 		);
 
-		if (result?.message && !result?.products) {
-			return res.status(404).json({
+		if (result?.message) {
+			return res.status(result.notFound ? 404 : 500).json({
 				success: false,
 				message: result.message,
 			});
 		}
-
-		// console.log("Products by sub-category result:", result);
 
 		return res.status(200).json({
 			success: true,

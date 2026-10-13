@@ -25,7 +25,10 @@ import updateCouponApi from "@/services/dashboard/coupon/updateCouponApi";
 // keeps "bkash" reserved for when it's re-enabled.
 const checkoutSchema = z.object({
   customerName: z.string().min(2, "Name must be at least 2 characters"),
-  customerEmail: z.string().email("Invalid email address"),
+  // Email is optional — blank is fine, but anything typed must be a valid address.
+  customerEmail: z.string().trim()
+    .refine((value) => value === "" || z.string().email().safeParse(value).success, "Invalid email address")
+    .optional(),
   customerPhone: z.string()
     .min(11, "Phone number must be 11 digits")
     .max(11, "Phone number must be 11 digits")
@@ -188,7 +191,7 @@ const Checkout = () => {
     // the customer can leave for the courier / seller.
     const orderData = {
       customerName: data.customerName,
-      customerEmail: data.customerEmail,
+      customerEmail: data.customerEmail?.trim() || null,
       customerPhone: data.customerPhone,
       insideDhaka: data.insideDhaka,
       deliveryAddress: data.deliverAddress,
@@ -258,7 +261,7 @@ const Checkout = () => {
                       name="customerEmail"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Email</FormLabel>
+                          <FormLabel>Email <span className="text-gray-500 font-normal">(optional)</span></FormLabel>
                           <FormControl>
                             <Input placeholder="john@example.com" className="bg-gray-800 border-gray-700" {...field} />
                           </FormControl>

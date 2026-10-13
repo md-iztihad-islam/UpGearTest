@@ -9,6 +9,7 @@ import {
 import deleteProductByIdApi from "@/services/dashboard/product/deleteProductApi";
 import getAllProductsApi from "@/services/dashboard/product/getAllProductsApi";
 import updateProductByIdApi from "@/services/dashboard/product/updateProductApi";
+import { matchesSearch } from "@/lib/search";
 
 // ─── tiny shared components ───────────────────────────────────────────────────
 
@@ -249,8 +250,6 @@ function ProductRow({ product, onEdit, onDelete, onToggleFlag, isDeleting, toggl
                     <td colSpan={9} className="px-6 py-3">
                         <div className="flex flex-wrap gap-2">
                             {filters
-                                .slice()
-                                .sort((a, b) => a.orderIndex - b.orderIndex)
                                 .map(pf => (
                                     <span key={pf.productFilterId} className="flex items-center gap-1 px-2.5 py-1 bg-gray-700 border border-gray-600 rounded-lg text-xs text-gray-300">
                                         <span className="text-gray-500">{pf.filter?.title}:</span>
@@ -369,8 +368,6 @@ function MobileProductCard({ product, onEdit, onDelete, onToggleFlag, isDeleting
             {expanded && filters.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-4 p-3 bg-gray-700/30 rounded-lg border border-gray-700/50">
                     {filters
-                        .slice()
-                        .sort((a, b) => a.orderIndex - b.orderIndex)
                         .map(pf => (
                             <span key={pf.productFilterId} className="flex items-center gap-1 px-2 py-0.5 bg-gray-700 border border-gray-600 rounded text-xs text-gray-300">
                                 <span className="text-gray-500">{pf.filter?.title}:</span>
@@ -425,21 +422,20 @@ function ManageProduct() {
         let list = allProducts;
 
         if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
             list = list.filter((p) =>
-                p.title?.toLowerCase().includes(q) ||
-                p.subTitle?.toLowerCase().includes(q) ||
-                p.slug?.toLowerCase().includes(q) ||
-                p.status?.toLowerCase().includes(q) ||
-                p.group?.brand?.name?.toLowerCase().includes(q) ||
-                p.group?.category?.title?.toLowerCase().includes(q) ||
-                p.group?.subCategory?.title?.toLowerCase().includes(q) ||
-                p.group?.productType?.toLowerCase().includes(q) ||
-                p.coupon?.code?.toLowerCase().includes(q) ||
-                p.productFilters?.some(pf =>
-                    pf.filter?.title?.toLowerCase().includes(q) ||
-                    pf.filterItem?.title?.toLowerCase().includes(q)
-                )
+                matchesSearch(searchQuery, [
+                    p.productId,
+                    p.groupId,
+                    p.title,
+                    p.subTitle,
+                    p.slug,
+                    p.status,
+                    p.group?.brand?.title,
+                    p.group?.category?.title,
+                    p.group?.subCategory?.title,
+                    p.coupon?.code,
+                    ...(p.productFilters || []).flatMap((pf) => [pf.filter?.title, pf.filterItem?.title]),
+                ])
             );
         }
 

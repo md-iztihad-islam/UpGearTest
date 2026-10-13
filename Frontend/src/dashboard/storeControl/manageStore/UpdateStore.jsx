@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
     ArrowLeft, Store, Mail, Phone, MapPin, Hash,
-    Lock, SortAsc, Loader2, Save,
+    Lock, Loader2, Save,
 } from "lucide-react";
 import getStoreByIdApi from "@/services/dashboard/store/getStoreByIdApi";
 import updateStoreApi from "@/services/dashboard/store/updateStoreApi";
@@ -33,7 +33,6 @@ const INITIAL = {
     email: "",
     password: "",
     status: "active",
-    orderIndex: "",
 };
 
 function EditStore() {
@@ -62,7 +61,6 @@ function EditStore() {
             email: store.email || "",
             password: "",          // never pre-fill passwords
             status: store.status || "active",
-            orderIndex: store.orderIndex?.toString() ?? "",
         });
         setHasHydrated(true);
     }, [storeRes, hasHydrated]);
@@ -91,8 +89,6 @@ function EditStore() {
         if (!form.address.trim()) return window.showToast("Address is required.", "error");
         if (!form.phone.trim()) return window.showToast("Phone is required.", "error");
         if (!form.email.trim()) return window.showToast("Email is required.", "error");
-        if (form.orderIndex === "" || isNaN(Number(form.orderIndex)))
-            return window.showToast("Order index must be a number.", "error");
 
         const payload = {
             title: form.title,
@@ -101,7 +97,6 @@ function EditStore() {
             phone: form.phone,
             email: form.email,
             status: form.status,
-            orderIndex: Number(form.orderIndex),
         };
 
         // Only include password if the user actually typed a new one
@@ -169,18 +164,6 @@ function EditStore() {
                                             value={form.subTitle}
                                             onChange={set("subTitle")}
                                             placeholder="e.g. Ground Floor, Shop 3"
-                                            className={inputCls}
-                                        />
-                                    </Field>
-                                </div>
-
-                                <div className="grid sm:grid-cols-2 gap-5">
-                                    <Field label="Order Index" icon={SortAsc}>
-                                        <input
-                                            type="number"
-                                            value={form.orderIndex}
-                                            onChange={set("orderIndex")}
-                                            placeholder="0"
                                             className={inputCls}
                                         />
                                     </Field>

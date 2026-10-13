@@ -35,7 +35,7 @@ export const getAllBannersInOrderRepository = async () => {
     try {
         const response = await prisma.banner.findMany({
             orderBy: {
-                orderIndex: 'asc',
+                createdAt: 'asc',
             },
         });
         return response;
@@ -92,7 +92,7 @@ export const getActiveBannersInOrderRepository = async () => {
                 status: "active",
             },
             orderBy: {
-                orderIndex: 'asc',
+                createdAt: 'asc',
             },
         });
         return response;
@@ -111,7 +111,7 @@ export  const getDeactiveBannersInOrderRepository = async () => {
                 status: "inactive",
             },
             orderBy: {
-                orderIndex: 'asc',
+                createdAt: 'asc',
             },
         });
         return response;

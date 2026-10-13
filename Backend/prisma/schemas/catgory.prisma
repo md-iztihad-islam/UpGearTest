@@ -18,6 +18,7 @@ model SubCategory {
   categoryId      String          @map("CategoryId")
   title           String          @map("Title")
   slug            String          @unique @map("Slug")
+  imageURL        String?         @map("ImageURL")
   metaTitle       String?         @map("MetaTitle")
   metaDescription String?         @map("MetaDescription")
   createdAt       DateTime        @default(now()) @map("CreatedAt")

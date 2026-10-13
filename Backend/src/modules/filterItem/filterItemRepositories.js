@@ -17,11 +17,15 @@ export const addFilterItemRepository = async (filterItemData) => {
 
 export const deleteFilterItemByIdRepository = async (filterItemId) => {
     try {
-        const response = await prisma.filterItem.delete({
-            where: {
-                filterItemId: filterItemId,
-            },
-        });
+        // Unassign the item from products before deleting it.
+        const [, response] = await prisma.$transaction([
+            prisma.productFilter.deleteMany({ where: { filterItemId } }),
+            prisma.filterItem.delete({
+                where: {
+                    filterItemId: filterItemId,
+                },
+            }),
+        ]);
         return response;
     } catch (error) {
         console.log("Error in deleteFilterItemByIdRepository:", error);

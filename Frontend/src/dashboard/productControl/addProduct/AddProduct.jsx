@@ -22,6 +22,14 @@ const slugify = (text) =>
 
 const buildSlug = (title, subTitle) => slugify(`${title} ${subTitle}`.trim());
 
+// Discount is derived from the two prices — the backend recalculates it too.
+const getDiscount = (mainPrice, price) => {
+    const main = Number.parseFloat(mainPrice);
+    const selling = Number.parseFloat(price);
+    if (Number.isNaN(main) || Number.isNaN(selling)) return null;
+    return Math.max(0, Math.round((main - selling) * 100) / 100);
+};
+
 function AddProduct() {
     const navigate = useNavigate();
 
@@ -30,7 +38,6 @@ function AddProduct() {
         title: "",
         subTitle: "",
         mainPrice: "",
-        discount: "",
         price: "",
         status: "draft",
         slug: "",
@@ -201,7 +208,11 @@ function AddProduct() {
             return;
         }
         if (!formData.mainPrice || !formData.price) {
-            window.showToast("Main price and price are required.", "error");
+            window.showToast("Main price and selling price are required.", "error");
+            return;
+        }
+        if (Number.parseFloat(formData.price) > Number.parseFloat(formData.mainPrice)) {
+            window.showToast("Selling price can't be higher than the main price.", "error");
             return;
         }
         if (!formData.slug.trim()) {
@@ -214,7 +225,6 @@ function AddProduct() {
         form.append("title", formData.title);
         form.append("subTitle", formData.subTitle);
         form.append("mainPrice", formData.mainPrice);
-        if (formData.discount) form.append("discount", formData.discount);
         form.append("price", formData.price);
         form.append("status", formData.status);
         form.append("slug", formData.slug);
@@ -227,10 +237,9 @@ function AddProduct() {
 
         const productFiltersPayload = Object.entries(filterSelections)
             .filter(([, filterItemId]) => !!filterItemId)
-            .map(([filterId, filterItemId], index) => ({
+            .map(([filterId, filterItemId]) => ({
                 filterId,
                 filterItemId,
-                orderIndex: index,
             }));
         form.append("productFilters", JSON.stringify(productFiltersPayload));
 
@@ -241,6 +250,12 @@ function AddProduct() {
 
         addProduct(form);
     };
+
+    const discount = getDiscount(formData.mainPrice, formData.price);
+    const discountPercent =
+        discount && Number.parseFloat(formData.mainPrice) > 0
+            ? Math.round((discount / Number.parseFloat(formData.mainPrice)) * 100)
+            : 0;
 
     const isLoadingDropdowns =
         isLoadingGroups || isLoadingCoupons || isLoadingFilters || isLoadingFilterItems;
@@ -284,7 +299,7 @@ function AddProduct() {
                                     <option value="">Select group</option>
                                     {groups.map((group) => (
                                         <option key={group.groupId} value={group.groupId}>
-                                            {group.groupId} — {group.category?.title} / {group.subCategory?.title} ({group.brand?.name})
+                                            {group.groupId} — {group.category?.title} / {group.subCategory?.title} ({group.brand?.title})
                                         </option>
                                     ))}
                                 </select>
@@ -406,13 +421,15 @@ function AddProduct() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm text-gray-400 mb-2">Discount (৳)</label>
-                                    <input
-                                        type="number"
-                                        value={formData.discount}
-                                        onChange={(e) => handleFieldChange("discount", e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition"
-                                    />
+                                    <label className="block text-sm text-gray-400 mb-2">
+                                        Discount (৳) <span className="text-gray-500">— auto</span>
+                                    </label>
+                                    <div className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-300">
+                                        {discount === null ? "—" : `৳${discount.toLocaleString()}`}
+                                        {discountPercent > 0 && (
+                                            <span className="ml-2 text-xs text-green-400">({discountPercent}% off)</span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 

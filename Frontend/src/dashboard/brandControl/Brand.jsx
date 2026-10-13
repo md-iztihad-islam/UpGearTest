@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import getAllSubCategoriesApi from "@/services/dashboard/category/getAllSubCategoriesApi";
+import { matchesSearch } from "@/lib/search";
 
 /* ─── Helpers ───────────────────────────────────────────────────── */
 const EMPTY_FORM = {
@@ -444,14 +445,9 @@ function BrandManager() {
     });
 
     const allBrands = brandsData?.data ?? [];
-    const query = search.trim().toLowerCase();
-    const brands = query
-        ? allBrands.filter((b) =>
-            b.title?.toLowerCase().includes(query) ||
-            b.subCategory?.title?.toLowerCase().includes(query) ||
-            b.slug?.toLowerCase().includes(query)
-        )
-        : allBrands;
+    const brands = allBrands.filter((b) =>
+        matchesSearch(search, [b.title, b.subCategory?.title, b.slug])
+    );
 
     return (
         <div className="w-full px-3 sm:px-6 py-5 sm:py-8">
@@ -549,7 +545,7 @@ function BrandManager() {
                         {[...Array(3)].map((_, i) => <SkeletonRow key={i} />)}
                     </div>
                 ) : brands.length === 0 ? (
-                    <EmptyState hasSearch={!!query} onAdd={() => { setShowAddForm(true); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+                    <EmptyState hasSearch={!!search.trim()} onAdd={() => { setShowAddForm(true); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
                 ) : (
                     <div className="space-y-2.5">
                         {brands.map((brand) => (

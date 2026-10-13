@@ -33,7 +33,7 @@ function GroupProduct({ groupProducts }) {
             {canScrollLeft && (
                 <button
                     onClick={() => scroll(-1)}
-                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 w-9 h-9 flex items-center justify-center bg-gray-800 border border-gray-700 rounded-full shadow-lg hover:bg-gray-700 transition-colors"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 w-9 h-9 flex items-center justify-center bg-[#181818] border border-[#333333] rounded-full shadow-lg hover:bg-[#242424] transition-colors"
                 >
                     <ChevronLeft className="w-4 h-4 text-white" />
                 </button>
@@ -43,7 +43,7 @@ function GroupProduct({ groupProducts }) {
             {canScrollRight && (
                 <button
                     onClick={() => scroll(1)}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 w-9 h-9 flex items-center justify-center bg-gray-800 border border-gray-700 rounded-full shadow-lg hover:bg-gray-700 transition-colors"
+                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 w-9 h-9 flex items-center justify-center bg-[#181818] border border-[#333333] rounded-full shadow-lg hover:bg-[#242424] transition-colors"
                 >
                     <ChevronRight className="w-4 h-4 text-white" />
                 </button>
@@ -60,13 +60,13 @@ function GroupProduct({ groupProducts }) {
                     <button
                         key={product.productId || index}
                         onClick={() => navigate(`/products/${product.slug}`)}
-                        className="flex-shrink-0 w-[168px] sm:w-[184px] bg-gray-800/50 border border-gray-700/50 hover:border-blue-500/50 rounded-2xl p-3 flex flex-col items-center gap-3 transition-all duration-200 hover:bg-gray-700/50 hover:shadow-lg hover:shadow-blue-500/10 group"
+                        className="flex-shrink-0 w-[168px] sm:w-[184px] bg-black border-2 border-[#333333] hover:border-[#4a4a4a] rounded-none rounded-tr-2xl rounded-bl-2xl p-3 flex flex-col items-center gap-3 transition-colors duration-200 group"
                     >
-                        <div className="w-full aspect-square rounded-xl overflow-hidden bg-gray-900/50">
+                        <div className="w-full aspect-square rounded-none rounded-tr-lg rounded-bl-lg overflow-hidden bg-[#0a0a0a]">
                             <img
-                                src={product.images?.[0]?.imageURL || "https://via.placeholder.com/150"}
+                                src={product.bannerImageURL || product.images?.[0]?.imageURL || "https://via.placeholder.com/150"}
                                 alt={product.title || `Variant ${index + 1}`}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                             />
                         </div>
                         <div className="w-full text-left space-y-0.5">
@@ -78,7 +78,7 @@ function GroupProduct({ groupProducts }) {
                                     {product.subTitle}
                                 </p>
                             )}
-                            <p className="text-sm font-bold text-blue-400 pt-0.5">
+                            <p className="text-sm font-bold text-white pt-0.5">
                                 ৳{Number(product.price).toLocaleString()}
                             </p>
                         </div>

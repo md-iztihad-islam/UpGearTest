@@ -1,4 +1,4 @@
-import { acceptOrderService, addOrderService, cancelAcceptedOrShippedOrderService, cancelOrderService, getAllAcceptedOrdersService, getAllCanceledOrdersService, getAllPendingOrdersService, getAllShippedOrdersService, getOrderByIdService, shipOrderService } from "./orderServices.js";
+import { acceptOrderService, addOrderService, cancelAcceptedOrShippedOrderService, cancelOrderService, deleteShippedOrderService, getAllAcceptedOrdersService, getAllCanceledOrdersService, getAllPendingOrdersService, getAllShippedOrdersService, getOrderByIdService, shipOrderService } from "./orderServices.js";
 
 export const addOrderController = async (req, res) => {
     try {
@@ -245,5 +245,49 @@ export const cancelMultipleShippedOrdersController = async (req, res) => {
     } catch (error) {
         console.error("Error canceling multiple shipped orders:", error);
         return res.status(500).json({ message: "Internal server error" });
+    }
+}
+
+// Deleting shipped orders (stock is not affected)
+
+export const deleteShippedOrderController = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+
+        const deletedOrder = await deleteShippedOrderService(orderId);
+
+        return res.status(200).json({
+            success: true,
+            message: "Order deleted successfully",
+            order: deletedOrder
+        });
+    } catch (error) {
+        console.error("Error deleting shipped order:", error);
+        return res.status(error.statusCode || 500).json({
+            success: false,
+            message: error.statusCode ? error.message : "Internal server error"
+        });
+    }
+}
+
+export const deleteMultipleShippedOrdersController = async (req, res) => {
+    try {
+        const { orderIds } = req.body;
+
+        if (!Array.isArray(orderIds) || orderIds.length === 0) {
+            return res.status(400).json({ success: false, message: "orderIds is required" });
+        }
+
+        for (const orderId of orderIds) {
+            await deleteShippedOrderService(orderId);
+        }
+
+        return res.status(200).json({ success: true, message: "Orders deleted successfully" });
+    } catch (error) {
+        console.error("Error deleting multiple shipped orders:", error);
+        return res.status(error.statusCode || 500).json({
+            success: false,
+            message: error.statusCode ? error.message : "Internal server error"
+        });
     }
 }

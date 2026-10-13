@@ -1,9 +1,11 @@
 import getShippedOrdersApi from "@/services/dashboard/order/getShippedOrdersApi";
 import cancelMultipleShippedOrdersApi from "@/services/dashboard/order/cancelMultipleShippedOrdersApi";
+import deleteShippedOrderApi from "@/services/dashboard/order/deleteShippedOrderApi";
+import deleteMultipleShippedOrdersApi from "@/services/dashboard/order/deleteMultipleShippedOrdersApi";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { ArrowLeft, Eye, Download, Calendar, Loader2, FileText, X, CheckSquare, Square } from "lucide-react";
+import { ArrowLeft, Eye, Download, Calendar, Loader2, FileText, X, CheckSquare, Square, Trash2 } from "lucide-react";
 
 function ShippedOrders() {
   const navigate = useNavigate();
@@ -148,6 +150,45 @@ function ShippedOrders() {
     cancelSelected();
   };
 
+  // Deleting a shipped order only removes the record — stock stays as it is.
+  const { mutate: deleteSelected, isPending: isDeletingSelected } = useMutation({
+    mutationFn: () => deleteMultipleShippedOrdersApi(Array.from(selectedIds)),
+    onSuccess: () => {
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ["shippedOrdersData"] });
+    },
+    onError: (error) => {
+      alert(error?.response?.data?.message || "Some orders failed to delete, please retry");
+      queryClient.invalidateQueries({ queryKey: ["shippedOrdersData"] });
+    },
+  });
+
+  const { mutate: deleteOne, isPending: isDeletingOne, variables: deletingOrderId } = useMutation({
+    mutationFn: (orderId) => deleteShippedOrderApi(orderId),
+    onSuccess: (_data, orderId) => {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(orderId);
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: ["shippedOrdersData"] });
+    },
+    onError: (error) => {
+      alert(error?.response?.data?.message || "Failed to delete the order, please retry");
+    },
+  });
+
+  const handleDeleteSelected = () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.size} shipped order(s)? Stock will not be changed. This cannot be undone.`)) return;
+    deleteSelected();
+  };
+
+  const handleDeleteOne = (orderId) => {
+    if (!window.confirm(`Delete order #${orderId}? Stock will not be changed. This cannot be undone.`)) return;
+    deleteOne(orderId);
+  };
+
   return (
     <div className="min-h-screen bg-black text-white p-4 sm:p-6 lg:p-10">
       <div className="max-w-7xl mx-auto">
@@ -235,6 +276,14 @@ function ShippedOrders() {
               >
                 {isCancelling ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
                 Cancel Selected
+              </button>
+              <button
+                onClick={handleDeleteSelected}
+                disabled={isDeletingSelected}
+                className="flex items-center gap-2 px-4 py-2 bg-red-900 hover:bg-red-800 border border-red-600/60 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors duration-200 font-medium"
+              >
+                {isDeletingSelected ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Delete Selected
               </button>
             </div>
           </div>
@@ -327,6 +376,18 @@ function ShippedOrders() {
                         >
                           <Eye className="w-4 h-4" />
                           <span className="hidden sm:inline">Details</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteOne(order.orderId)}
+                          disabled={isDeletingOne && deletingOrderId === order.orderId}
+                          className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-all duration-200 hover:scale-105 font-medium"
+                        >
+                          {isDeletingOne && deletingOrderId === order.orderId ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                          <span className="hidden sm:inline">Delete</span>
                         </button>
                       </div>
                     </div>

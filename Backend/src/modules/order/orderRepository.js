@@ -8,20 +8,20 @@ const generateOrderId = async (tx) => {
 
     const datePrefix = `${mm}${yy}${dd}`;
 
-    // Count today's orders (00:00:00 to 23:59:59.999 local/UTC — pick consistently)
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-
-    const countToday = await tx.order.count({
-        where: {
-            createdAt: {
-                gte: startOfDay,
-                lte: endOfDay,
-            },
-        },
+    // Continue from the highest sequence already used today rather than
+    // counting today's orders — orders can be deleted, and a count would
+    // then hand out an orderId that still exists.
+    const todaysOrders = await tx.order.findMany({
+        where: { orderId: { startsWith: datePrefix } },
+        select: { orderId: true },
     });
 
-    const sequenceNumber = String(countToday + 1).padStart(3, "0"); // 001, 002, ...
+    const lastSequence = todaysOrders.reduce((max, { orderId }) => {
+        const sequence = Number.parseInt(orderId.slice(datePrefix.length), 10);
+        return Number.isNaN(sequence) ? max : Math.max(max, sequence);
+    }, 0);
+
+    const sequenceNumber = String(lastSequence + 1).padStart(3, "0"); // 001, 002, ...
 
     return `${datePrefix}${sequenceNumber}`;
 };
@@ -270,6 +270,25 @@ export const getOrderByIdRepository = async (orderId, tx = prisma) => {
         return response;
     } catch (error) {
         console.log("Error in getOrderByIdRepository:", error);
+        throw error;
+    }
+}
+// Removes an order and the rows that reference it. Stock and serial numbers
+// are intentionally left untouched — the caller decides whether that is safe.
+export const deleteOrderRepository = async (orderId, tx = prisma) => {
+    try {
+        await tx.couponUsage.deleteMany({ where: { orderId } });
+        await tx.returnRequest.deleteMany({ where: { orderId } });
+        await tx.orderProduct.deleteMany({ where: { orderId } });
+
+        const response = await tx.order.delete({
+            where: {
+                orderId: orderId,
+            },
+        });
+        return response;
+    } catch (error) {
+        console.log("Error in deleteOrderRepository:", error);
         throw error;
     }
 }

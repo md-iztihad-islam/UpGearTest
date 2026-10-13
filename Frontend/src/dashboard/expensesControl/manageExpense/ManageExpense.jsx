@@ -18,6 +18,7 @@ import { Calendar } from "@/components/ui/calendar";
 
 import getAllExpensesApi from "@/services/dashboard/expense/getAllExpensesApi";
 import deleteExpenseApi from "@/services/dashboard/expense/deleteExpenseApi";
+import { matchesSearch } from "@/lib/search";
 
 const EXPENSES_PER_PAGE = 10;
 
@@ -41,12 +42,14 @@ function ManageExpense() {
         let result = allExpenses;
 
         if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase();
             result = result.filter((expense) =>
-                expense.description?.toLowerCase().includes(query) ||
-                expense.employee?.name?.toLowerCase().includes(query) ||
-                expense.employee?.email?.toLowerCase().includes(query) ||
-                expense.employee?.store?.title?.toLowerCase().includes(query)
+                matchesSearch(searchQuery, [
+                    expense.description,
+                    expense.amount,
+                    expense.employee?.name,
+                    expense.employee?.email,
+                    expense.employee?.store?.title,
+                ])
             );
         }
 

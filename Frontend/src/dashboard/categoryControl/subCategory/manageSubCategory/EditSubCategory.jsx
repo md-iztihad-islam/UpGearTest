@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Save, Loader2, Plus } from "lucide-react";
+import SquareImagePicker from "@/components/dashboard/SquareImagePicker";
 
 function EditSubCategory() {
     const { subcategoryId } = useParams();
@@ -12,6 +13,8 @@ function EditSubCategory() {
     const [slug, setSlug] = useState("");
     const [metaTitle, setMetaTitle] = useState("");
     const [metaDescription, setMetaDescription] = useState("");
+    const [existingImageUrl, setExistingImageUrl] = useState(null);
+    const [imageFile, setImageFile] = useState(null);
 
     const { data, isLoading } = useQuery({
         queryKey: ["sub-category", subcategoryId],
@@ -24,6 +27,7 @@ function EditSubCategory() {
             setSlug(data.data.slug);
             setMetaTitle(data.data.metaTitle);
             setMetaDescription(data.data.metaDescription);
+            setExistingImageUrl(data.data.imageURL || null);
         }
     }, [data]);
 
@@ -31,7 +35,11 @@ function EditSubCategory() {
         mutationFn: ({ subcategoryId, subcategoryData }) => {
             return updateSubCategoryApi(subcategoryId, subcategoryData);
         },
-        onSuccess: () => {
+        onSuccess: (data) => {
+            if (!data?.success) {
+                window.showToast("Error updating sub-category", "error");
+                return;
+            }
             window.showToast("Sub-category updated successfully", "success");
             setTitle("");
             navigate(-1);
@@ -45,12 +53,17 @@ function EditSubCategory() {
         if (!title) {
             return;
         }
-        const subcategoryData = {
-            title,
-            slug,
-            metaTitle,
-            metaDescription
-        };
+        // Multipart so a new image can be uploaded with the fields.
+        const subcategoryData = new FormData();
+        subcategoryData.append("title", title);
+        subcategoryData.append("slug", slug);
+        subcategoryData.append("metaTitle", metaTitle || "");
+        subcategoryData.append("metaDescription", metaDescription || "");
+        if (imageFile) {
+            subcategoryData.append("image", imageFile);
+        } else if (!existingImageUrl && data?.data?.imageURL) {
+            subcategoryData.append("removeImage", "true");
+        }
         mutate({ subcategoryId, subcategoryData });
     };
 
@@ -139,6 +152,15 @@ function EditSubCategory() {
                                     className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200"
                                 />
                             </div>
+
+                            <SquareImagePicker
+                                label="Image"
+                                hint="Shown as a square tile with the title on top in the home page slider. Use a square image (e.g. 800×800)."
+                                existingUrl={existingImageUrl}
+                                file={imageFile}
+                                onFileChange={setImageFile}
+                                onRemoveExisting={() => setExistingImageUrl(null)}
+                            />
 
                             {/* Action Buttons */}
                             <div className="flex flex-col sm:flex-row gap-4 pt-4">

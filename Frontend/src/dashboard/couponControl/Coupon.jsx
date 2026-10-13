@@ -15,6 +15,7 @@ import {
     Pencil, X, Hash, ShoppingCart, ArrowUpDown, ChevronDown, ChevronUp, Search
 } from "lucide-react";
 import { useState } from "react";
+import { matchesSearch } from "@/lib/search";
 
 /* ─── Helpers ───────────────────────────────────────────────────── */
 const EMPTY_FORM = {
@@ -492,13 +493,7 @@ function CouponManager() {
     const isFetching = tab === "active" ? activeFetching : inactiveFetching;
     const rawCoupons = tab === "active" ? activeCoupons : inactiveCoupons;
 
-    const query = search.trim().toLowerCase();
-    const coupons = query
-        ? rawCoupons.filter((c) =>
-            c.code?.toLowerCase().includes(query) ||
-            c.title?.toLowerCase().includes(query)
-        )
-        : rawCoupons;
+    const coupons = rawCoupons.filter((c) => matchesSearch(search, [c.code, c.title]));
 
     const tabs = [
         { key: "active", label: "Live", count: activeCoupons.length, dot: "bg-emerald-400" },
@@ -611,7 +606,7 @@ function CouponManager() {
                         {[...Array(3)].map((_, i) => <SkeletonRow key={i} />)}
                     </div>
                 ) : coupons.length === 0 ? (
-                    <EmptyState tab={tab} hasSearch={!!query} onAdd={() => { setShowAddForm(true); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+                    <EmptyState tab={tab} hasSearch={!!search.trim()} onAdd={() => { setShowAddForm(true); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
                 ) : (
                     <div className="space-y-2.5">
                         {coupons.map((coupon) => (

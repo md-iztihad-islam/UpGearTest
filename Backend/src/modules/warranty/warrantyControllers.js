@@ -116,18 +116,6 @@ export const updateWarrantyByIdController = async (req, res) => {
             });
         }
 
-        if (updateData.orderIndex !== undefined) {
-            const parsedOrderIndex = Number.parseInt(updateData.orderIndex, 10);
-
-            if (Number.isNaN(parsedOrderIndex)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Warranty orderIndex must be a valid number",
-                });
-            }
-
-            updateData.orderIndex = parsedOrderIndex;
-        }
 
         const response = await updateWarrantyByIdService(warrantyId, updateData);
 

@@ -50,8 +50,7 @@ function CarouselComponent() {
     // "mobile", "Mobile", "MOBILE", etc. depending on how they were entered.
     const relevantBanners = useMemo(() => {
         return [...banners]
-            .filter((b) => (b.displayType || "").toUpperCase() === screenType)
-            .sort((a, b) => a.orderIndex - b.orderIndex);
+            .filter((b) => (b.displayType || "").toUpperCase() === screenType);
     }, [banners, screenType]);
 
     const images = useMemo(

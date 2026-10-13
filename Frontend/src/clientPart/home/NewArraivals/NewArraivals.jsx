@@ -1,43 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
-import ProductCard from "@/components/clientPart/productCard/ProductCard";
-import getAllNewArraivalsApi from "@/services/clientPart/newArraivals/getAllNewArraivalsApi";
-
+import ProductRow from "../components/ProductRow";
+import { getNewArrivalsApi } from "@/services/clientPart/products/productListingApi";
 
 function NewArraivals() {
-    const { data, isLoading, isError } = useQuery({
-        queryKey: ["newArraivals"],
-        queryFn: getAllNewArraivalsApi,
-        staleTime: 5 * 60 * 1000,
-    });
-
-    const products = data?.data.products || [];
-
-    if (isLoading || isError || products.length === 0) return null;
-
     return (
-        <section className="relative overflow-hidden bg-black py-12 sm:py-16">
-            {/* Ambient glow */}
-            <div className="pointer-events-none absolute -right-32 top-0 h-full w-96 bg-blue-600/20 blur-[100px]" />
-
-            <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                {/* Header */}
-                <div className="text-center mb-8 sm:mb-12">
-                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2">
-                        New On The Shop!
-                    </h2>
-                    <p className="text-gray-400 text-sm sm:text-base">
-                        We've got some shiny stuff for your desk
-                    </p>
-                </div>
-
-                {/* Grid — 2 cols on phone; fluid, medium-sized columns beyond that */}
-                <div className="grid grid-cols-2 gap-4 sm:gap-6 sm:grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
-                    {products.map((product) => (
-                        <ProductCard key={product.productId} product={product} />
-                    ))}
-                </div>
-            </div>
-        </section>
+        <ProductRow
+            title="New On The Shop!"
+            subtitle="We've got some shiny stuff for your desk"
+            queryKey={["home", "newArrivals"]}
+            fetchProducts={getNewArrivalsApi}
+            viewAllTo="/new-arraivals"
+            glowClass="-right-32 bg-blue-600/20"
+        />
     );
 }
 

@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Search, Edit, Trash2, Loader2, Users, Plus } from "lucide-react";
 import getAllEmployeesApi from "@/services/dashboard/employee/getAllEmployeeApi";
 import deleteEmployeeApi from "@/services/dashboard/employee/deleteEmployeeApi";
+import { matchesSearch } from "@/lib/search";
 
 function ManageEmployee() {
     const navigate = useNavigate();
@@ -17,15 +18,8 @@ function ManageEmployee() {
     const allEmployees = employeesRes?.data || [];
 
     const filteredEmployees = useMemo(() => {
-        if (!searchQuery.trim()) return allEmployees;
-        const query = searchQuery.toLowerCase();
         return allEmployees.filter((emp) =>
-            emp.name?.toLowerCase().includes(query) ||
-            emp.email?.toLowerCase().includes(query) ||
-            emp.phone?.toLowerCase().includes(query) ||
-            emp.role?.toLowerCase().includes(query) ||
-            emp.status?.toLowerCase().includes(query) ||
-            emp.store?.title?.toLowerCase().includes(query)
+            matchesSearch(searchQuery, [emp.name, emp.email, emp.phone, emp.role, emp.status, emp.store?.title])
         );
     }, [allEmployees, searchQuery]);
 

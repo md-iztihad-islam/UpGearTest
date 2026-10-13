@@ -1,16 +1,30 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Plus, X, ArrowUp, ArrowDown, Save } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, X, ChevronLeft, ChevronRight, Save } from "lucide-react";
 
+import RichTextEditor from "@/components/textEditor/TextEditor";
 import getGroupByIdApi from "@/services/dashboard/group/getGroupByIdApi";
 import updateGroupByIdApi from "@/services/dashboard/group/updateGroupByIdApi";
 import getAllBrandsApi from "@/services/dashboard/brand/getAllBrandsApi";
 import getAllCategories from "@/services/dashboard/category/getAllCategories";
 import getAllSubCategoriesApi from "@/services/dashboard/category/getAllSubCategoriesApi";
 import getAllWarrantiesApi from "@/services/dashboard/warrenty/getAllWarrantiesApi";
+import getSpecificationBySubCategoryApi from "@/services/dashboard/category/getSpecificationBySubCategoryApi";
+import addSpecificationApi from "@/services/dashboard/category/addSpecificationApi";
 
 const MAX_NEW_IMAGES = 3;
+
+const inputCls =
+    "w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition";
+
+const moveItem = (list, from, to) => {
+    if (from === to || to < 0 || to >= list.length) return list;
+    const next = [...list];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    return next;
+};
 
 function EditGroup() {
     const navigate = useNavigate();
@@ -22,7 +36,6 @@ function EditGroup() {
         subCategoryId: "",
         warrantyId: "",
         description: "",
-        productType: "instock",
         insideDhakaCharge: "",
         outsideDhakaCharge: "",
         keyFeaturesText: "",
@@ -30,8 +43,11 @@ function EditGroup() {
     });
 
     const [descriptionImages, setDescriptionImages] = useState([]);
-    const [specifications, setSpecifications] = useState([]);
+    // { [specificationId]: value } — specs of the selected subcategory
+    const [specValues, setSpecValues] = useState({});
+    const [newSpecTitle, setNewSpecTitle] = useState("");
     const [hasHydrated, setHasHydrated] = useState(false);
+    const [dragIndex, setDragIndex] = useState(null);
 
     // Fetch the group being edited
     const { data: groupRes, isLoading: isLoadingGroup, error: groupError } = useQuery({
@@ -57,11 +73,21 @@ function EditGroup() {
         queryKey: ["all-warranties"],
         queryFn: () => getAllWarrantiesApi(),
     });
+    const {
+        data: specificationRes,
+        isLoading: isLoadingSpecifications,
+        refetch: refetchSpecifications,
+    } = useQuery({
+        queryKey: ["specifications", formData.subCategoryId],
+        queryFn: () => getSpecificationBySubCategoryApi(formData.subCategoryId),
+        enabled: !!formData.subCategoryId,
+    });
 
     const brands = brandRes?.data || [];
     const categories = categoryRes?.data || [];
     const allSubCategories = subCategoryRes?.data || [];
     const warranties = warrantyRes?.data || [];
+    const specifications = specificationRes?.data || [];
 
     const subCategoriesForSelectedCategory = useMemo(() => {
         if (!formData.categoryId) return [];
@@ -79,31 +105,26 @@ function EditGroup() {
             subCategoryId: group.subCategoryId || "",
             warrantyId: group.warrantyId || "",
             description: group.description || "",
-            productType: group.productType || "instock",
             insideDhakaCharge: group.insideDhakaCharge?.toString() || "",
             outsideDhakaCharge: group.outsideDhakaCharge?.toString() || "",
             keyFeaturesText: (group.keyFeatures || []).map((kf) => kf.feature).join(", "),
             tagsText: (group.tags || []).map((t) => t.tag).join(", "),
         });
 
+        // The API already returns images in display order.
         setDescriptionImages(
-            (group.descriptionImages || [])
-                .slice()
-                .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
-                .map((img) => ({
-                    key: img.descriptionImageId,
-                    type: "existing",
-                    id: img.descriptionImageId,
-                    url: img.imageURL,
-                }))
+            (group.descriptionImages || []).map((img) => ({
+                key: img.descriptionImageId,
+                type: "existing",
+                id: img.descriptionImageId,
+                url: img.imageURL,
+            }))
         );
 
-        setSpecifications(
-            (group.productSpecifications || []).map((spec) => ({
-                productSpecificationId: spec.productSpecificationId,
-                specificationId: spec.specificationId,
-                value: spec.value,
-            }))
+        setSpecValues(
+            Object.fromEntries(
+                (group.productSpecifications || []).map((spec) => [spec.specificationId, spec.value])
+            )
         );
 
         setHasHydrated(true);
@@ -117,12 +138,32 @@ function EditGroup() {
         setFormData((prev) => ({ ...prev, categoryId, subCategoryId: "" }));
     };
 
-    const handleSpecChange = (productSpecificationId, value) => {
-        setSpecifications((prev) =>
-            prev.map((spec) =>
-                spec.productSpecificationId === productSpecificationId ? { ...spec, value } : spec
-            )
-        );
+    const handleSpecChange = (specificationId, value) => {
+        setSpecValues((prev) => ({ ...prev, [specificationId]: value }));
+    };
+
+    const { mutate: createSpecification, isPending: isCreatingSpec } = useMutation({
+        mutationFn: (title) => addSpecificationApi({ title, subCategoryId: formData.subCategoryId }),
+        onSuccess: (data) => {
+            if (data?.success) {
+                window.showToast("Specification added.", "success");
+                setNewSpecTitle("");
+                refetchSpecifications();
+            } else {
+                window.showToast(data?.message || "Failed to add the specification.", "error");
+            }
+        },
+        onError: () => window.showToast("An error occurred while adding the specification.", "error"),
+    });
+
+    const handleAddSpecification = () => {
+        const title = newSpecTitle.trim();
+        if (!title) return;
+        if (specifications.some((spec) => spec.title.toLowerCase() === title.toLowerCase())) {
+            window.showToast("That specification already exists for this subcategory.", "error");
+            return;
+        }
+        createSpecification(title);
     };
 
     const handleAddImageFile = (e) => {
@@ -158,13 +199,15 @@ function EditGroup() {
     };
 
     const handleMoveImage = (index, direction) => {
-        setDescriptionImages((prev) => {
-            const next = [...prev];
-            const targetIndex = index + direction;
-            if (targetIndex < 0 || targetIndex >= next.length) return prev;
-            [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
-            return next;
-        });
+        setDescriptionImages((prev) => moveItem(prev, index, index + direction));
+    };
+
+    const handleDrop = (e, index) => {
+        e.preventDefault();
+        if (dragIndex !== null) {
+            setDescriptionImages((prev) => moveItem(prev, dragIndex, index));
+        }
+        setDragIndex(null);
     };
 
     const { mutate: updateGroup, isPending: isSaving } = useMutation({
@@ -188,9 +231,13 @@ function EditGroup() {
             window.showToast("Brand, category, and subcategory are required.", "error");
             return;
         }
+        if (formData.insideDhakaCharge === "" || formData.outsideDhakaCharge === "") {
+            window.showToast("Both delivery charges are required.", "error");
+            return;
+        }
 
         const existingPayload = [];
-        const newOrderIndexes = [];
+        const newImagePositions = [];
         const newFiles = [];
 
         descriptionImages.forEach((img, index) => {
@@ -198,10 +245,10 @@ function EditGroup() {
                 existingPayload.push({
                     descriptionImageId: img.id,
                     imageURL: img.url,
-                    orderIndex: index,
+                    position: index,
                 });
             } else {
-                newOrderIndexes.push(index);
+                newImagePositions.push(index);
                 newFiles.push(img.file);
             }
         });
@@ -212,7 +259,6 @@ function EditGroup() {
         form.append("subCategoryId", formData.subCategoryId);
         form.append("warrantyId", formData.warrantyId || "");
         form.append("description", formData.description);
-        form.append("productType", formData.productType);
         form.append("insideDhakaCharge", formData.insideDhakaCharge);
         form.append("outsideDhakaCharge", formData.outsideDhakaCharge);
         form.append(
@@ -227,17 +273,20 @@ function EditGroup() {
                 formData.tagsText.split(",").map((t) => t.trim()).filter(Boolean)
             )
         );
+        // Full replacement: only specs of the current subcategory with a value are kept.
         form.append(
             "productSpecifications",
             JSON.stringify(
-                specifications.map((spec) => ({
-                    productSpecificationId: spec.productSpecificationId,
-                    value: spec.value,
-                }))
+                specifications
+                    .map((spec) => ({
+                        specificationId: spec.specificationId,
+                        value: (specValues[spec.specificationId] || "").trim(),
+                    }))
+                    .filter((spec) => spec.value)
             )
         );
         form.append("existingDescriptionImages", JSON.stringify(existingPayload));
-        form.append("newImageOrderIndexes", JSON.stringify(newOrderIndexes));
+        form.append("newImagePositions", JSON.stringify(newImagePositions));
         newFiles.forEach((file) => form.append("descImages", file));
 
         updateGroup(form);
@@ -290,7 +339,7 @@ function EditGroup() {
                                     <select
                                         value={formData.brandId}
                                         onChange={(e) => handleFieldChange("brandId", e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition"
+                                        className={inputCls}
                                     >
                                         <option value="">Select brand</option>
                                         {brands.map((brand) => (
@@ -306,7 +355,7 @@ function EditGroup() {
                                     <select
                                         value={formData.warrantyId}
                                         onChange={(e) => handleFieldChange("warrantyId", e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition"
+                                        className={inputCls}
                                     >
                                         <option value="">None</option>
                                         {warranties.map((warranty) => (
@@ -322,7 +371,7 @@ function EditGroup() {
                                     <select
                                         value={formData.categoryId}
                                         onChange={(e) => handleCategoryChange(e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition"
+                                        className={inputCls}
                                     >
                                         <option value="">Select category</option>
                                         {categories.map((cat) => (
@@ -339,7 +388,7 @@ function EditGroup() {
                                         value={formData.subCategoryId}
                                         onChange={(e) => handleFieldChange("subCategoryId", e.target.value)}
                                         disabled={!formData.categoryId}
-                                        className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition disabled:opacity-50"
+                                        className={inputCls + " disabled:opacity-50"}
                                     >
                                         <option value="">Select subcategory</option>
                                         {subCategoriesForSelectedCategory.map((sc) => (
@@ -351,37 +400,6 @@ function EditGroup() {
                                 </div>
                             </div>
 
-                            <div className="mt-5">
-                                <label className="block text-sm text-gray-400 mb-2">Product Type</label>
-                                <div className="inline-flex rounded-lg border border-gray-600 overflow-hidden">
-                                    {["instock", "preorder"].map((type) => (
-                                        <button
-                                            key={type}
-                                            type="button"
-                                            onClick={() => handleFieldChange("productType", type)}
-                                            className={`px-5 py-2.5 text-sm font-medium transition-colors ${
-                                                formData.productType === type
-                                                    ? "bg-blue-600 text-white"
-                                                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                                            }`}
-                                        >
-                                            {type === "instock" ? "In Stock" : "Pre-Order"}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="mt-5">
-                                <label className="block text-sm text-gray-400 mb-2">Description</label>
-                                <textarea
-                                    value={formData.description}
-                                    onChange={(e) => handleFieldChange("description", e.target.value)}
-                                    rows={4}
-                                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition resize-y"
-                                    placeholder="Group description (HTML supported)"
-                                />
-                            </div>
-
                             <div className="grid sm:grid-cols-2 gap-5 mt-5">
                                 <div>
                                     <label className="block text-sm text-gray-400 mb-2">
@@ -391,7 +409,7 @@ function EditGroup() {
                                         type="number"
                                         value={formData.insideDhakaCharge}
                                         onChange={(e) => handleFieldChange("insideDhakaCharge", e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition"
+                                        className={inputCls}
                                     />
                                 </div>
                                 <div>
@@ -402,7 +420,7 @@ function EditGroup() {
                                         type="number"
                                         value={formData.outsideDhakaCharge}
                                         onChange={(e) => handleFieldChange("outsideDhakaCharge", e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition"
+                                        className={inputCls}
                                     />
                                 </div>
                             </div>
@@ -421,7 +439,7 @@ function EditGroup() {
                                         value={formData.keyFeaturesText}
                                         onChange={(e) => handleFieldChange("keyFeaturesText", e.target.value)}
                                         rows={2}
-                                        className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition resize-y"
+                                        className={inputCls + " resize-y"}
                                         placeholder="e.g. Bluetooth 5.0, RGB backlight, Hot-swappable switches"
                                     />
                                 </div>
@@ -434,7 +452,7 @@ function EditGroup() {
                                         value={formData.tagsText}
                                         onChange={(e) => handleFieldChange("tagsText", e.target.value)}
                                         rows={2}
-                                        className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition resize-y"
+                                        className={inputCls + " resize-y"}
                                         placeholder="e.g. gaming, wireless, mechanical"
                                     />
                                 </div>
@@ -442,34 +460,78 @@ function EditGroup() {
                         </section>
 
                         {/* Specifications */}
-                        {specifications.length > 0 && (
-                            <section className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6 sm:p-8">
-                                <h2 className="text-lg font-semibold mb-6">Specifications</h2>
-                                <div className="space-y-3">
-                                    {specifications.map((spec) => (
-                                        <div key={spec.productSpecificationId} className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                                            <span className="text-sm text-gray-500 font-mono w-full sm:w-48 truncate">
-                                                {spec.specificationId}
-                                            </span>
-                                            <input
-                                                type="text"
-                                                value={spec.value}
-                                                onChange={(e) => handleSpecChange(spec.productSpecificationId, e.target.value)}
-                                                className="flex-1 px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition"
-                                            />
-                                        </div>
-                                    ))}
+                        <section className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6 sm:p-8">
+                            <h2 className="text-lg font-semibold mb-2">Specifications</h2>
+                            <p className="text-xs text-gray-500 mb-6">
+                                Specifications come from the selected subcategory. Leave a value empty to remove it from this group.
+                            </p>
+
+                            {!formData.subCategoryId ? (
+                                <p className="text-sm text-gray-500 italic">Select a subcategory to edit specifications.</p>
+                            ) : isLoadingSpecifications ? (
+                                <div className="flex items-center gap-2 text-sm text-gray-400">
+                                    <Loader2 className="w-4 h-4 animate-spin" /> Loading specifications...
                                 </div>
-                                <p className="text-xs text-gray-500 mt-4">
-                                    Adding new specifications isn't supported yet — only existing values can be edited here.
-                                </p>
-                            </section>
-                        )}
+                            ) : (
+                                <>
+                                    {specifications.length === 0 ? (
+                                        <p className="text-sm text-gray-500 mb-5">No specifications defined for this subcategory yet.</p>
+                                    ) : (
+                                        <div className="grid sm:grid-cols-2 gap-4 mb-6">
+                                            {specifications.map((spec) => (
+                                                <div key={spec.specificationId}>
+                                                    <label className="block text-sm text-gray-400 mb-2">{spec.title}</label>
+                                                    <input
+                                                        type="text"
+                                                        value={specValues[spec.specificationId] || ""}
+                                                        onChange={(e) => handleSpecChange(spec.specificationId, e.target.value)}
+                                                        placeholder={`Enter ${spec.title}`}
+                                                        className={inputCls}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <div className="flex flex-col sm:flex-row gap-3 pt-5 border-t border-gray-700">
+                                        <input
+                                            type="text"
+                                            value={newSpecTitle}
+                                            onChange={(e) => setNewSpecTitle(e.target.value)}
+                                            onKeyDown={(e) => e.key === "Enter" && handleAddSpecification()}
+                                            placeholder="New specification for this subcategory, e.g. Battery Life"
+                                            className={inputCls}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleAddSpecification}
+                                            disabled={!newSpecTitle.trim() || isCreatingSpec}
+                                            className="flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium text-sm whitespace-nowrap transition-colors disabled:opacity-50"
+                                        >
+                                            {isCreatingSpec ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                            Add Specification
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </section>
+
+                        {/* Description */}
+                        <section className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6 sm:p-8">
+                            <h2 className="text-lg font-semibold mb-6">Description</h2>
+                            <RichTextEditor
+                                value={formData.description}
+                                onChange={(value) => handleFieldChange("description", value)}
+                            />
+                        </section>
 
                         {/* Description Images */}
                         <section className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6 sm:p-8">
                             <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-lg font-semibold">Description Images</h2>
+                                <div>
+                                    <h2 className="text-lg font-semibold">Description Images</h2>
+                                    <p className="text-xs text-gray-500 mt-1">Drag or use the arrows to reorder.</p>
+                                </div>
                                 <label className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium text-sm cursor-pointer transition-colors">
                                     <Plus className="w-4 h-4" />
                                     <span className="hidden sm:inline">Add Image</span>
@@ -490,12 +552,24 @@ function EditGroup() {
                                 {descriptionImages.map((img, index) => (
                                     <div
                                         key={img.key}
-                                        className="relative bg-gray-700/50 border border-gray-600 rounded-lg overflow-hidden aspect-square"
+                                        draggable
+                                        onDragStart={(e) => {
+                                            setDragIndex(index);
+                                            e.dataTransfer.effectAllowed = "move";
+                                            e.dataTransfer.setData("text/plain", String(index));
+                                        }}
+                                        onDragOver={(e) => e.preventDefault()}
+                                        onDrop={(e) => handleDrop(e, index)}
+                                        onDragEnd={() => setDragIndex(null)}
+                                        className={`relative bg-gray-700/50 border border-gray-600 rounded-lg overflow-hidden aspect-square cursor-grab active:cursor-grabbing ${
+                                            dragIndex === index ? "opacity-40" : ""
+                                        }`}
                                     >
                                         <img
                                             src={img.type === "existing" ? img.url : img.previewUrl}
                                             alt={`Description ${index + 1}`}
-                                            className="w-full h-full object-cover"
+                                            draggable={false}
+                                            className="w-full h-full object-cover pointer-events-none"
                                         />
 
                                         <button
@@ -511,17 +585,19 @@ function EditGroup() {
                                                 type="button"
                                                 onClick={() => handleMoveImage(index, -1)}
                                                 disabled={index === 0}
+                                                aria-label="Move image left"
                                                 className="p-1.5 bg-gray-900/80 hover:bg-gray-900 rounded-full transition-colors disabled:opacity-30"
                                             >
-                                                <ArrowUp className="w-3.5 h-3.5" />
+                                                <ChevronLeft className="w-3.5 h-3.5" />
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => handleMoveImage(index, 1)}
                                                 disabled={index === descriptionImages.length - 1}
+                                                aria-label="Move image right"
                                                 className="p-1.5 bg-gray-900/80 hover:bg-gray-900 rounded-full transition-colors disabled:opacity-30"
                                             >
-                                                <ArrowDown className="w-3.5 h-3.5" />
+                                                <ChevronRight className="w-3.5 h-3.5" />
                                             </button>
                                         </div>
 

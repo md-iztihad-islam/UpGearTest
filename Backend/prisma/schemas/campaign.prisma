@@ -2,7 +2,6 @@ model Campaign {
   campaignId  String    @id @default(uuid()) @map("CampaignId")
   title       String    @map("Title")
   subTitle    String?   @map("SubTitle")
-  orderIndex  Int       @map("OrderIndex")
   status      String    @map("Status")
   startAt     DateTime? @map("StartAt")
   endAt       DateTime? @map("EndAt")

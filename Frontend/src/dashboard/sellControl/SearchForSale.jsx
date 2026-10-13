@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, X, TrendingUp, ChevronRight, Loader2, PackageX } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,8 @@ const SearchForSale = ({
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
 
   const searchRef = useRef(null);
+  // Ignore responses from searches that have since been superseded.
+  const latestRequestRef = useRef(0);
 
   useEffect(() => {
     const savedSearches = localStorage.getItem("recentSearches");
@@ -46,27 +48,33 @@ const SearchForSale = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const debouncedSearch = useCallback(
-    debounce(async (query) => {
-      if (!query.trim() || query.length < 2) {
-        setSearchResults([]);
-        setIsSearching(false);
-        return;
-      }
-      setIsSearching(true);
-      try {
-        const response = await searchProductsApi({ query, limit: 8 });
-        // Fixed shape from the corrected backend: { success, data: { products, page, limit } }
-        setSearchResults(response?.data?.products || []);
-      } catch (error) {
-        console.error("Search error:", error);
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 300),
+  const debouncedSearch = useMemo(
+    () =>
+      debounce(async (query) => {
+        const requestId = ++latestRequestRef.current;
+        if (query.trim().length < 2) {
+          setSearchResults([]);
+          setIsSearching(false);
+          return;
+        }
+        setIsSearching(true);
+        try {
+          // The shop counter can sell products that aren't published online yet.
+          const response = await searchProductsApi({ query, limit: 8, includeDrafts: true });
+          if (requestId !== latestRequestRef.current) return;
+          setSearchResults(response?.data?.products || []);
+        } catch (error) {
+          if (requestId !== latestRequestRef.current) return;
+          console.error("Search error:", error);
+          setSearchResults([]);
+        } finally {
+          if (requestId === latestRequestRef.current) setIsSearching(false);
+        }
+      }, 300),
     []
   );
+
+  useEffect(() => () => debouncedSearch.cancel(), [debouncedSearch]);
 
   const handleInputChange = (e) => {
     const value = e.target.value;
@@ -75,6 +83,8 @@ const SearchForSale = ({
     setHighlightedIndex(-1);
     if (value.trim().length >= 2) debouncedSearch(value);
     else {
+      debouncedSearch.cancel();
+      latestRequestRef.current++;
       setSearchResults([]);
       setIsSearching(false);
     }
@@ -107,7 +117,7 @@ const SearchForSale = ({
       setSearchResults([]);
       return;
     }
-    navigate(`/products/${product.productId}`);
+    navigate(`/products/${product.slug}`);
     saveRecentSearch(product.title);
     setSearchQuery("");
     setShowDropdown(false);
@@ -210,7 +220,7 @@ const SearchForSale = ({
                     } ${index === highlightedIndex ? "bg-gray-800" : ""}`}
                   >
                     <Avatar className="h-12 w-12 sm:h-14 sm:w-14 rounded-md border border-gray-700 flex-shrink-0">
-                      <AvatarImage src={product.bannerImage || product.images?.[0]?.url} alt={product.title} className="object-cover" />
+                      <AvatarImage src={product.bannerImageURL || product.images?.[0]?.imageURL} alt={product.title} className="object-cover" />
                       <AvatarFallback className="bg-gray-800 text-gray-400 rounded-md text-sm">
                         {product.title?.charAt(0).toUpperCase()}
                       </AvatarFallback>
@@ -222,11 +232,11 @@ const SearchForSale = ({
                       )}
                       <div className="flex items-center gap-1.5 sm:gap-2 mt-1 flex-wrap">
                         <span className="text-xs sm:text-sm font-semibold text-white">{formatPrice(product.price)}</span>
-                        {product.discount > 0 && (
+                        {Number(product.mainPrice) > Number(product.price) && (
                           <>
                             <span className="text-xs text-gray-500 line-through">{formatPrice(product.mainPrice)}</span>
                             <Badge className="text-xs px-1 py-0 h-4 sm:h-5 bg-red-600 text-white border-0">
-                              -{Math.round((product.discount / product.mainPrice) * 100)}%
+                              -{Math.round(((product.mainPrice - product.price) / product.mainPrice) * 100)}%
                             </Badge>
                           </>
                         )}

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import addStockApi from "@/services/dashboard/stock/addStock";
 import getAllProductsApi from "@/services/dashboard/product/getAllProductsApi";
+import { matchesSearch } from "@/lib/search";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -31,14 +32,9 @@ function ProductSelect({ products, value, onChange, isLoading }) {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState("");
 
-    const filtered = products.filter((p) => {
-        const q = search.toLowerCase();
-        return (
-            p.title?.toLowerCase().includes(q) ||
-            p.productId?.toLowerCase().includes(q) ||
-            p.group?.brand?.name?.toLowerCase().includes(q)
-        );
-    });
+    const filtered = products.filter((p) =>
+        matchesSearch(search, [p.title, p.subTitle, p.productId, p.group?.brand?.title])
+    );
 
     const selected = products.find((p) => p.productId === value);
 

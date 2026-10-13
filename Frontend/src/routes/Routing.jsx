@@ -86,8 +86,10 @@ const EditSubCategory = lazy(() => import("@/dashboard/categoryControl/subCatego
 // Dashboard - Filter Control
 const Filter = lazy(() => import("@/dashboard/categoryControl/filter/filter"));
 const AddFilter = lazy(() => import("@/dashboard/categoryControl/filter/addFilter/AddFilter"));
+const ManageFilter = lazy(() => import("@/dashboard/categoryControl/filter/manageFilter/ManageFilter"));
 const FilterItem = lazy(() => import("@/dashboard/categoryControl/filterItem/FilterItem"));
 const AddFilterItem = lazy(() => import("@/dashboard/categoryControl/filterItem/addFilterItem/AddFilterItem"));
+const ManageFilterItem = lazy(() => import("@/dashboard/categoryControl/filterItem/manageFilterItem/ManageFilterItem"));
 
 // Dashboard - Stock Control
 const Stock = lazy(() => import("@/dashboard/stockControl/Stock"));
@@ -224,8 +226,10 @@ function Routing() {
                 {/* Filter Control */}
                 <Route path="categorycontrol/filter" element={<Suspense fallback={<UpGearLoader />}><Filter /></Suspense>} />
                 <Route path="categorycontrol/filter/add-filter" element={<Suspense fallback={<UpGearLoader />}><AddFilter /></Suspense>} />
+                <Route path="categorycontrol/filter/manage-filter" element={<Suspense fallback={<UpGearLoader />}><ManageFilter /></Suspense>} />
                 <Route path="categorycontrol/filter-item" element={<Suspense fallback={<UpGearLoader />}><FilterItem /></Suspense>} />
                 <Route path="categorycontrol/filter-item/add-filter-item" element={<Suspense fallback={<UpGearLoader />}><AddFilterItem /></Suspense>} />
+                <Route path="categorycontrol/filter-item/manage-filter-item" element={<Suspense fallback={<UpGearLoader />}><ManageFilterItem /></Suspense>} />
 
                 {/* Stock Control */}
                 <Route path="stockcontrol" element={<Suspense fallback={<UpGearLoader />}><Stock /></Suspense>} />

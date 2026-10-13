@@ -10,7 +10,6 @@ export const addGroupRepository = async (data) => {
             insideDhakaCharge,
             outsideDhakaCharge,
             description,
-            productType,
             warrentyId,
             keyFeatures,      // string[]
             tags,             // string[]
@@ -28,7 +27,6 @@ export const addGroupRepository = async (data) => {
                 insideDhakaCharge,
                 outsideDhakaCharge,
                 description,
-                productType,
                 warrantyId: warrentyId || null,
 
                 // ✅ nested create — each string becomes a KeyFeature row
@@ -158,17 +156,32 @@ export const updateGroupByIdRepository = async (groupId, updateData) => {
             }
         }
 
+        // productSpecifications is the full list of { specificationId, value }
+        // for the group: replace the existing rows so specs can be added,
+        // changed or cleared (an empty value removes that spec).
         if (productSpecifications !== undefined) {
-            for (const spec of productSpecifications) {
-                if (!spec.productSpecificationId) continue;
+            operations.push(prisma.productSpecification.deleteMany({ where: { groupId } }));
+
+            const specsToSave = productSpecifications.filter(
+                (spec) => spec.specificationId && String(spec.value ?? "").trim() !== ""
+            );
+            if (specsToSave.length > 0) {
                 operations.push(
-                    prisma.productSpecification.update({
-                        where: { productSpecificationId: spec.productSpecificationId },
-                        data: { value: spec.value },
+                    prisma.productSpecification.createMany({
+                        data: specsToSave.map((spec) => ({
+                            groupId,
+                            specificationId: spec.specificationId,
+                            value: String(spec.value).trim(),
+                        })),
                     })
                 );
             }
         }
+
+        // DescriptionImage has no order column; images are read ordered by
+        // createdAt, so the chosen order is stored by stamping them 1ms apart.
+        const orderBase = Date.now();
+        const orderedAt = (position) => new Date(orderBase + position);
 
         if (existingDescriptionImages !== undefined) {
             const keptIds = existingDescriptionImages.map((img) => img.descriptionImageId);
@@ -182,21 +195,23 @@ export const updateGroupByIdRepository = async (groupId, updateData) => {
                 })
             );
 
-            for (const img of existingDescriptionImages) {
+            existingDescriptionImages.forEach((img, index) => {
                 operations.push(
                     prisma.descriptionImage.update({
                         where: { descriptionImageId: img.descriptionImageId },
+                        data: { createdAt: orderedAt(img.position ?? index) },
                     })
                 );
-            }
+            });
         }
 
         if (newDescriptionImages?.length > 0) {
             operations.push(
                 prisma.descriptionImage.createMany({
-                    data: newDescriptionImages.map((img) => ({
+                    data: newDescriptionImages.map((img, index) => ({
                         groupId,
                         imageURL: img.imageURL,
+                        createdAt: orderedAt(img.position ?? (existingDescriptionImages?.length ?? 0) + index),
                     })),
                 })
             );
@@ -304,10 +319,14 @@ export const getGroupByIdRepository = async (groupId) => {
                     },
                 },
                 productSpecifications: {
+                    orderBy: { createdAt: "asc" },
                     select: {
                         productSpecificationId: true,
                         specificationId: true,
                         value: true,
+                        specification: {
+                            select: { title: true },
+                        },
                     },
                 },
                 descriptionImages: {

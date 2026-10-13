@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, FolderTree } from "lucide-react";
+import SquareImagePicker from "@/components/dashboard/SquareImagePicker";
 
 function AddSubCategory() {
     const navigate = useNavigate();
@@ -12,6 +13,7 @@ function AddSubCategory() {
     const [slug, setSlug] = useState("");
     const [metaTitle, setMetaTitle] = useState("");
     const [metaDescription, setMetaDescription] = useState("");
+    const [imageFile, setImageFile] = useState(null);
 
     useEffect(() => {
         setSlug(title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''));
@@ -32,8 +34,13 @@ function AddSubCategory() {
             console.log("Adding sub-category:", newSubCategory);
             return addSubCategoryApi(newSubCategory);
         },
-        onSuccess: () => {
-            console.log("Sub-category added successfully");
+        onSuccess: (data) => {
+            if (!data?.success) {
+                window.showToast?.(data?.message || "Error adding sub-category", "error");
+                return;
+            }
+            window.showToast?.("Sub-category added successfully", "success");
+            setImageFile(null);
             setTitle("");
             setCategory(null);
             setSlug("");
@@ -49,13 +56,14 @@ function AddSubCategory() {
         if (!title || !category) {
             return;
         }
-        const subCategoryData = {
-            title: title,
-            categoryId: category,
-            slug: slug,
-            metaTitle: metaTitle,
-            metaDescription: metaDescription
-        };
+        // Multipart so the optional image travels with the fields.
+        const subCategoryData = new FormData();
+        subCategoryData.append("title", title);
+        subCategoryData.append("categoryId", category);
+        subCategoryData.append("slug", slug);
+        subCategoryData.append("metaTitle", metaTitle);
+        subCategoryData.append("metaDescription", metaDescription);
+        if (imageFile) subCategoryData.append("image", imageFile);
         mutate(subCategoryData);
     };
 
@@ -158,6 +166,13 @@ function AddSubCategory() {
                             className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200"
                         />
                     </div>
+
+                    <SquareImagePicker
+                        label="Image (optional)"
+                        hint="Shown as a square tile with the title on top in the home page slider. Use a square image (e.g. 800×800)."
+                        file={imageFile}
+                        onFileChange={setImageFile}
+                    />
 
                     {/* Action Buttons */}
                     <div className="flex flex-col sm:flex-row gap-4 pt-4">

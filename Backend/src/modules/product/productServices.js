@@ -3,13 +3,9 @@ import {
 	addProductRepository,
 	deleteProductByIdRepository,
 	getAllProductsRepository,
-	getDiscountedRepository,
-	getHotDealsRepository,
-	getNewArraivalsRepository,
 	getProductByIdRepository,
 	getProductBySlugRepository,
-	getProductsBySubCategoryRepository,
-	searchProductsRepository,
+	listProductsRepository,
 	updateProductByIdRepository,
 } from "./productRepositories.js";
 
@@ -86,88 +82,49 @@ export const getProductbySlugService = async (slug) => {
 	}
 }
 
-export const searchProductsService = async (searchTerm, page, limit, sortBy) => {
+// Shared by every storefront list endpoint. `options` comes from
+// parseListingQuery in the controller; `scope` fixes what the page is about.
+export const listProductsService = async (options) => {
 	try {
-		const products = await searchProductsRepository(searchTerm, page, limit, sortBy);;
-		return products;
+		return await listProductsRepository(options);
 	} catch (error) {
-		console.log("Error in searchProductsService:", error);
-		return {
-			message: "Error searching products in service",
-		};
+		console.log("Error in listProductsService:", error);
+		return { message: "Error fetching products in service" };
 	}
-}
+};
 
-export const getNewArraivalsService = async (page=1, limit=10, sortBy) => {
-	try {
-		const products = await getNewArraivalsRepository(page, limit, sortBy);
-		return products;
-	} catch (error) {
-		console.log("Error in getNewArraivalsService:", error);
-		return {
-			message: "Error fetching new arrivals in service",
-		};
-	}
-}
-
-export const getHotDealsService = async (page=1, limit=10, sortBy) => {
-	try {
-		const products = await getHotDealsRepository(page, limit, sortBy);
-		return products;
-	} catch (error) {
-		console.log("Error in getHotDealsService:", error);
-		return {
-			message: "Error fetching hot deals in service",
-		};
-	}
-}
-
-export const getDiscountedService = async (page=1, limit=10, sortBy) => {
-	try {
-		const products = await getDiscountedRepository(page, limit, sortBy);
-		return products;
-	} catch (error) {
-		console.log("Error in getDiscountedService:", error);
-		return {
-			message: "Error fetching discounted products in service",
-		};
-	}
-}
-
-export const getProductsBySubCategoryService = async (subCategorySlug, page, limit, sortBy, filter) => {
+export const getProductsBySubCategoryService = async (subCategorySlug, brandSlug, options) => {
 	try {
 		if (!subCategorySlug) {
-			return { message: "subCategorySlug is required" };
+			return { message: "subCategorySlug is required", notFound: true };
 		}
 
-		// Route only gives us the slug, but the repository (and Group model)
-		// works off subCategoryId, so resolve it first.
+		// Routes carry slugs, but products are scoped through their Group by id.
 		const subCategory = await prisma.subCategory.findUnique({
 			where: { slug: subCategorySlug },
-			select: { subCategoryId: true, title: true, slug: true },
+			select: { subCategoryId: true, title: true, slug: true, imageURL: true },
+		});
+		if (!subCategory) {
+			return { message: "Sub-category not found", notFound: true };
+		}
+
+		let brand = null;
+		if (brandSlug) {
+			brand = await prisma.brand.findUnique({
+				where: { slug: brandSlug },
+				select: { brandId: true, title: true, slug: true },
+			});
+			if (!brand) {
+				return { message: "Brand not found", notFound: true };
+			}
+		}
+
+		const result = await listProductsRepository({
+			...options,
+			scope: { subCategoryId: subCategory.subCategoryId, brandId: brand?.brandId },
 		});
 
-		if (!subCategory) {
-			return { message: "Sub-category not found" };
-		}
-
-		const result = await getProductsBySubCategoryRepository(
-			subCategory.subCategoryId,
-			page,
-			limit,
-			sortBy,
-			filter
-		);
-
-		if (result?.message) {
-			// repository already logged/handled the error, just bubble it up
-			return result;
-		}
-
-		return {
-			subCategory,
-			...result,
-		};
+		return { subCategory, brand, ...result };
 	} catch (error) {
 		console.log("Error in getProductsBySubCategoryService:", error);
 		return { message: "Error fetching products by sub-category in service" };

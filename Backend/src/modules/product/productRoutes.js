@@ -9,6 +9,7 @@ import {
 	getProductByIdController,
 	getProductBySlugController,
 	getProductsBySubCategoryController,
+	getShopProductsController,
 	searchProductsController,
 	updateProductByIdController,
 } from "./productControllers.js";
@@ -37,6 +38,7 @@ router.put(
 router.delete("/delete-product-by-id/:productId", deleteProductByIdController);
 router.get("/get-product-by-slug/:slug", getProductBySlugController);
 router.get("/search-products", searchProductsController);
+router.get("/get-shop-products", getShopProductsController);
 router.get("/get-new-arrivals", getNewArrivalsController);
 router.get("/get-discounted-products", getDiscountedController);
 router.get("/get-hot-deals", getHotDealsController);

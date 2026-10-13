@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Search, Edit, Trash2, Loader2, Layers } from "lucide-react";
 import deleteGroupByIdApi from "@/services/dashboard/group/deleteGroupByIdApi";
 import getAllGroupApi from "@/services/dashboard/group/getAllGroupApi";
+import { matchesSearch } from "@/lib/search";
 
 function ManageGroup() {
     const navigate = useNavigate();
@@ -20,18 +21,15 @@ function ManageGroup() {
 
     // Filter groups based on search query
     const filteredGroups = useMemo(() => {
-        if (!searchQuery.trim()) return allGroups;
-
-        const query = searchQuery.toLowerCase();
         return allGroups.filter((group) =>
-            group.groupId?.toLowerCase().includes(query) ||
-            group.description?.toLowerCase().includes(query) ||
-            group.productType?.toLowerCase().includes(query) ||
-            group.category?.title?.toLowerCase().includes(query) ||
-            group.subCategory?.title?.toLowerCase().includes(query) ||
-            group.brand?.title?.toLowerCase().includes(query) ||
-            group.keyFeatures?.some((kf) => kf.feature?.toLowerCase().includes(query)) ||
-            group.tags?.some((t) => t.tag?.toLowerCase().includes(query))
+            matchesSearch(searchQuery, [
+                group.groupId,
+                group.category?.title,
+                group.subCategory?.title,
+                group.brand?.title,
+                ...(group.keyFeatures || []).map((kf) => kf.feature),
+                ...(group.tags || []).map((t) => t.tag),
+            ])
         );
     }, [allGroups, searchQuery]);
 
