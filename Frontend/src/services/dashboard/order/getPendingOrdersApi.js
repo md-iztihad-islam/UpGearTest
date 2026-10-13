@@ -1,30 +1,19 @@
 import axiosInstance from "@/helpers/dashboard/axiosInstance";
 
+// Only send the dates the user picked. The backend reads them as Bangladesh
+// days and treats a missing one as "no limit", so don't default endDate to
+// today here — new Date().toISOString() is the UTC date, which lags BD time
+// by a day between 00:00 and 06:00 and hides that day's orders.
 export default async function getPendingOrdersApi(startDate, endDate) {
     try {
-        let url = `/order/get-all-pending-orders?`;
-        const now = new Date();
-        
-        if (startDate) {
-            url += `&startDate=${startDate}`;
-        }else {
-            url += `&startDate=2023-01-01`;
-        } 
+        const params = {};
+        if (startDate) params.startDate = startDate;
+        if (endDate) params.endDate = endDate;
 
-        if (endDate) {
-            url += `&endDate=${endDate}`;
-        }else {
-            url += `&endDate=${now.toISOString().split('T')[0]}`;
-        }
-
-        const response = await axiosInstance.get(url);
-        const data = response?.data;
-
-        console.log("Response from getPendingOrdersApi:", data);
-        
-        return data;
+        const response = await axiosInstance.get("/order/get-all-pending-orders", { params });
+        return response.data;
     } catch (error) {
-        console.error('Error fetching pending orders:', error);
+        console.error("Error fetching pending orders:", error);
         throw error;
     }
 }
